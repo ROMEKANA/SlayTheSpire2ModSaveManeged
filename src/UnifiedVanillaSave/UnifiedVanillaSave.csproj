@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <GameDataDir Condition="'$(GameDataDir)' == '' and '$(GameDir)' != ''">$(GameDir)/data_sts2_windows_x86_64</GameDataDir>
+    <GameAssemblyPath Condition="'$(GameAssemblyPath)' == ''">$(GameDataDir)/sts2.dll</GameAssemblyPath>
+    <HarmonyAssemblyPath Condition="'$(HarmonyAssemblyPath)' == ''">$(GameDataDir)/0Harmony.dll</HarmonyAssemblyPath>
+    <GodotAssemblyPath Condition="'$(GodotAssemblyPath)' == ''">$(GameDataDir)/GodotSharp.dll</GodotAssemblyPath>
+  </PropertyGroup>
+  <Target Name="ValidateGameReferences" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(GameAssemblyPath)')" Text="Missing sts2.dll. Set GameDataDir or GameAssemblyPath; game DLLs are never bundled." />
+    <Error Condition="!Exists('$(HarmonyAssemblyPath)')" Text="Missing bundled 0Harmony.dll. Set HarmonyAssemblyPath." />
+    <Error Condition="!Exists('$(GodotAssemblyPath)')" Text="Missing GodotSharp.dll. Set GodotAssemblyPath." />
+  </Target>
+  <ItemGroup>
+    <Compile Include="../UnifiedVanillaSave.Core/*.cs" Link="Core/%(Filename)%(Extension)" />
+    <Reference Include="sts2"><HintPath>$(GameAssemblyPath)</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(HarmonyAssemblyPath)</HintPath><Private>false</Private></Reference>
+    <Reference Include="GodotSharp"><HintPath>$(GodotAssemblyPath)</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

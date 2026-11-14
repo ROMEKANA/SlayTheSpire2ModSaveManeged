@@ -1,0 +1,8 @@
+{
+  "GameAssemblySha256": "REPLACE_WITH_INSPECT_OUTPUT",
+  "MethodIlSha256": "REPLACE_WITH_INSPECT_OUTPUT_AFTER_CALLER_AUDIT",
+  "UserDataRoot": "C:\\Users\\YOUR_NAME\\AppData\\Roaming\\SlayTheSpire2",
+  "BackupDirectory": "D:\\STS2-backups\\UnifiedVanillaSave-first",
+  "AuditedGameVersion": "REPLACE_WITH_YOUR_INSTALLED_VERSION",
+  "CallersAndVanillaLayoutVerified": false
+}
