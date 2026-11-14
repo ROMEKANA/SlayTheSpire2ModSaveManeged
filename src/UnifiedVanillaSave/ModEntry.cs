@@ -1,5 +1,5 @@
 using System.Reflection;
-using Godot;
+using ProjectSettings = Godot.ProjectSettings;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Modding;
 using UnifiedVanillaSave.Core;
@@ -44,7 +44,8 @@ public static class ModEntry
             }
             catch (Exception ex)
             {
-                harmony.UnpatchSelf();
+                if (target is not null)
+                    harmony.Unpatch(target, HarmonyPatchType.Prefix, Owner);
                 target = null;
                 Log("INACTIVE: no save unification. Exit the game before playing. " + ex);
                 throw;

@@ -60,7 +60,7 @@ var tests = new (string Name, Action Run)[]
     ("exact method and IL audit accepted on a test fixture only", () =>
     {
         var game = typeof(MegaCrit.Sts2.Core.Saves.UserDataPathProvider).Assembly;
-        var method = typeof(MegaCrit.Sts2.Core.Saves.UserDataPathProvider).GetMethod("GetProfileDir")!;
+        var method = typeof(MegaCrit.Sts2.Core.Saves.UserDataPathProvider).GetMethod("GetProfileDir", [typeof(int)])!;
         var config = new AuditConfig(Compatibility.HashFile(game.Location),
             Compatibility.Hash(method.GetMethodBody()!.GetILAsByteArray()!), "", "", "fixture", true);
         if (Compatibility.Resolve(game, config) != method) throw new Exception("Wrong method");

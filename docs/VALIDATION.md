@@ -34,3 +34,20 @@
 - SDK解決コマンドの失敗を模擬し、.NET 9の導入案内が出ることと作業ディレクトリが復帰することを確認。
 
 これらはインストール処理と案内の検証であり、Windowsでの実行や実ゲームDLLでのビルド成功を示すものではない。
+
+
+## 実DLL参照ビルドの報告への修正
+
+Windowsでユーザーが .NET SDK 9.0.321 にて独立テスト11/11通過と実DLLのメタデータ取得を実施。その後、MOD本体のコンパイルで `Environment` のGodot/System間の名前衝突4件と、同梱Harmonyの `UnpatchSelf` 欠如1件を報告。
+
+- `using Godot` を `Godot.ProjectSettings` だけの型エイリアスに変更し、System.Environmentとの名前衝突を除去。
+- ロールバックは `Harmony.Unpatch(target, HarmonyPatchType.Prefix, Owner)` に変更。対象メソッドの自ownerのprefixだけを解除し、他MODのパッチは解除しない。
+- GetProfileDirが複数オーバーロードを持つメタデータが得られたため、監査ツールに候補/別オーバーロードの区別とconfigへ使うハッシュの明示を追加。fixtureにもオーバーロードを追加して正確な引数型による選択を検証。
+
+ユーザー報告で確認された候補のメタデータ:
+
+- Assembly SHA256: `A6CC282C52B96AD2E01D5692B1144B33AA8E3BA4E969582F648ECB13B2F751D7`
+- `static string GetProfileDir(int32)` のIL SHA256: `5B3EAA045B8EB89BBF692C2468B1FA749090D8706173227691C7775248808687`
+- 別オーバーロードの署名blob: `00020E08151181950102`。このメソッドには現実装のパッチを適用しない。
+
+これらのハッシュはユーザーのDLLを識別する記録であり、互換性の承認や初期設定値ではない。単一引数版のILには別メソッド呼び出しがあり、calleeと全callerの監査が必要。二引数版を直接使う保存先処理があれば現在のパッチでは共通化を保証できない。ゲームDLL自体はクラウドにないため、修正後の実DLL参照ビルド・起動成功はユーザー側での再確認が必要。
