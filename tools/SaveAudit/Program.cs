@@ -31,13 +31,16 @@ foreach (var handle in md.TypeDefinitions)
         var method = md.GetMethodDefinition(mh);
         if (md.GetString(method.Name) != Compatibility.TargetMethod) continue;
         Console.WriteLine($"{name}.{Compatibility.TargetMethod}: attributes={method.Attributes}; signature blob={Convert.ToHexString(md.GetBlobBytes(method.Signature))}");
-        Console.WriteLine("Expected static string(int32) signature blob: 00010E08");
-        if ((method.Attributes & System.Reflection.MethodAttributes.Static) != 0 &&
-            Convert.ToHexString(md.GetBlobBytes(method.Signature)) == "00010E08") matchingCandidates++;
+        var isCandidate = (method.Attributes & System.Reflection.MethodAttributes.Static) != 0 &&
+            Convert.ToHexString(md.GetBlobBytes(method.Signature)) == "00010E08";
+        Console.WriteLine(isCandidate
+            ? "CANDIDATE: static string GetProfileDir(int32). Audit this method AND its callees/callers."
+            : "OTHER OVERLOAD: not patched by this version; audit direct callers before enabling.");
+        if (isCandidate) matchingCandidates++;
         if (method.RelativeVirtualAddress != 0)
         {
             var il = pe.GetMethodBody(method.RelativeVirtualAddress).GetILBytes()!;
-            Console.WriteLine("Method IL SHA256: " + Compatibility.Hash(il));
+            Console.WriteLine((isCandidate ? "Candidate MethodIlSha256: " : "Other overload IL SHA256 (do not use in config): ") + Compatibility.Hash(il));
             Console.WriteLine("IL bytes: " + Convert.ToHexString(il));
         }
     }
