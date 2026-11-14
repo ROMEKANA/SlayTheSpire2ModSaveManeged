@@ -30,14 +30,37 @@ bash scripts/test.sh
 
 ## Windowsでビルド
 
-.NET 9 SDK、PowerShell、ローカルのゲームを用意してください。ゲームを終了し、旧セーブ統合MODを `mods` の外へ移動します。名前変更だけで `mods` 配下に残すとmanifestが再検出される場合があります。
+.NET 9 SDK、PowerShell、ローカルのゲームを用意してください。**.NET 10 SDKだけでは、このリポジトリのglobal.jsonを満たしません。** .NET 9 SDKは10と並行インストールできます。9.0.203そのものではなく、それ以降の9.0 SDKでも構いません。
+
+```powershell
+winget install --id Microsoft.DotNet.SDK.9 --exact
+# インストール後にPowerShellを開き直して確認
+dotnet --list-sdks
+dotnet --version
+```
+
+`dotnet --version` がリポジトリ内で9.0系を表示することを確認します。リポジトリ直下にはsolution/projectがないため、直下の `dotnet build` / `dotnet publish` は使わず、以下の `Build.ps1` で対象プロジェクトとゲームDLL参照を指定します。
+
+ゲームを終了し、旧セーブ統合MODを `mods` の外へ移動します。名前変更だけで `mods` 配下に残すとmanifestが再検出される場合があります。
 
 ```powershell
 $game = 'C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2'
+# $game は例です。Steam > STS2 > 管理 > ローカルファイルを閲覧、で開いた実際の場所を指定。
 $data = Join-Path $game 'data_sts2_windows_x86_64'
+$game
+Test-Path -LiteralPath $game -PathType Container
+Test-Path -LiteralPath (Join-Path $data 'sts2.dll') -PathType Leaf
 Get-Content (Join-Path $data 'sts2.runtimeconfig.json')
 dotnet --info
 .\scripts\Build.ps1 -GameDataDir $data
+```
+
+`Test-Path` がFalseの場合は先にパスを直してください。`$game` はゲームのインストール先ルートであり、このソースのフォルダや `data_...` フォルダではありません。`$game` が正しい場合にDLLの実際の配置を確認するには次を実行します。
+
+```powershell
+Get-ChildItem -LiteralPath $game -Filter sts2.dll -Recurse -File | Select-Object -ExpandProperty FullName
+# 表示されたsts2.dllの親ディレクトリを $data に設定
+# $data = '実際のゲームルート内のDLL格納フォルダ'
 ```
 
 標準以外の配置にも対応します。
@@ -88,7 +111,7 @@ notepad (Join-Path $configHome 'config.json')
 ## インストール・ログ・実機確認
 
 ```powershell
-.\scripts\Install.ps1 -GameDir $game
+.\scripts\Install.ps1 -GameDir $game -GameDataDir $data
 # ゲームを通常どおり起動した後、別のPowerShellでログを確認
 Get-Content (Join-Path $env:LOCALAPPDATA 'UnifiedVanillaSave\UnifiedVanillaSave.log') -Tail 80 -Wait
 ```
