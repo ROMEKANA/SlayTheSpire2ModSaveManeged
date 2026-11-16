@@ -66,6 +66,17 @@ var tests = new (string Name, Action Run)[]
         if (Compatibility.Resolve(game, config) != method) throw new Exception("Wrong method");
         Throws<InvalidOperationException>(() => Compatibility.Resolve(game, config with { MethodIlSha256 = "bad" }));
     }),
+    ("path report resolves both overloads and their direct callers without loading game code", () =>
+    {
+        using var report = new StringWriter();
+        SaveAudit.PathReport.Write(typeof(UnifiedVanillaSave.Tests.PathCallerFixture).Assembly.Location, report);
+        var text = report.ToString();
+        foreach (var expected in new[] { "PathCallerFixture.ViaOne", "PathCallerFixture.ViaTwo",
+            "GetProfileDir [signature=00010E08]", "ldstr", "test-fixture-", "Direct references from outside" })
+            if (!text.Contains(expected, StringComparison.Ordinal)) throw new Exception("Missing report evidence: " + expected);
+    }),
+    ("path report rejects an assembly without the provider", () =>
+        Throws<MissingMemberException>(() => SaveAudit.PathReport.Write(typeof(Compatibility).Assembly.Location, TextWriter.Null))),
     ("assembly change rejected before binding a target", () =>
         Throws<InvalidOperationException>(() => Compatibility.Resolve(typeof(Compatibility).Assembly,
             new AuditConfig(new string('0', 64), "", "", "", "test", true))))

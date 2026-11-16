@@ -13,6 +13,7 @@ public static class ModEntry
     private static readonly object Gate = new();
     private static MethodInfo? target;
     private static string? logPath;
+    private static readonly HashSet<int> LoggedProfiles = [];
 
     public static void Initialize()
     {
@@ -28,6 +29,8 @@ public static class ModEntry
                 var configPath = Environment.GetEnvironmentVariable("UVS_CONFIG") ?? Path.Combine(home, "config.json");
                 var config = Compatibility.ReadConfig(configPath);
                 var game = typeof(ModInitializerAttribute).Assembly;
+                Log($"Loaded mod: {typeof(ModEntry).Assembly.Location}; SHA256={Compatibility.HashFile(typeof(ModEntry).Assembly.Location)}");
+                Log($"Game assembly: {game.Location}; MVID={game.ManifestModule.ModuleVersionId}");
                 var method = Compatibility.Resolve(game, config);
                 Log($"Audit accepted: game={config.AuditedGameVersion}, sha256={config.GameAssemblySha256}, target={method}");
                 var actualRoot = FirstBackup.Canonical(ProjectSettings.GlobalizePath("user://"));
@@ -40,7 +43,7 @@ public static class ModEntry
                 target = method;
                 harmony.Patch(method, prefix: new HarmonyMethod(typeof(ModEntry), nameof(ProfilePrefix)) { priority = Priority.First });
                 CheckConflicts(method);
-                Log("ACTIVE: only GetProfileDir patched. Global mod detection unchanged.");
+                Log("PATCH_INSTALLED: only GetProfileDir(int) patched. Actual save routing is NOT verified. Look for PROFILE_ROUTE and inspect saved files.");
             }
             catch (Exception ex)
             {
@@ -58,6 +61,11 @@ public static class ModEntry
         // A later mod may have patched the same target. Never silently continue with mixed destinations.
         CheckConflicts(target ?? throw new InvalidOperationException("Patch not initialized."));
         __result = Compatibility.VanillaProfile(__0);
+        lock (Gate)
+        {
+            if (LoggedProfiles.Count < 16 && LoggedProfiles.Add(__0))
+                Log($"PROFILE_ROUTE: GetProfileDir(int) invoked; profileId={__0}; relative result='{__result}'. This does not confirm the final read/write path.");
+        }
         return false;
     }
 

@@ -11,7 +11,7 @@ Slay the Spire 2 のMODあり・なしでバニラ側のプロフィール保存
 - `tools/SaveAudit`: ゲームDLLを実行せずメタデータ/ILハッシュを表示するツール、初回バックアップコマンド。
 - `tests/UnifiedVanillaSave.Tests`: 外部テストパッケージ不要の独立したテストランナー。
 
-`GetProfileDir` だけを置換し、`IsRunningModded` などのゲーム全体のMOD判定は変更しません。メソッドの契約が現行DLLと一致することはローカルで監査します。監査前・DLL更新後・バックアップ失敗・既知のHarmony競合時には有効化しません。initializerの失敗後にゲームが続行する可能性があるため、**Loaded表示だけを信用せず、ACTIVEログがなければ終了してください。**
+`GetProfileDir` だけを置換し、`IsRunningModded` などのゲーム全体のMOD判定は変更しません。メソッドの契約が現行DLLと一致することはローカルで監査します。監査前・DLL更新後・バックアップ失敗・既知のHarmony競合時には有効化しません。initializerの失敗後にゲームが続行する可能性があるため、**Loaded表示やパッチ適用成功は、保存先共通化の成功を意味しません。** `PATCH_INSTALLED` はパッチ適用、`PROFILE_ROUTE` は単一引数版の呼び出しを示すだけです。保存先共通化の成功は、実ファイルとMODあり/なしの往復確認で判断してください。
 
 検証済みの結果と未実施項目は [クラウド検証記録](docs/VALIDATION.md) に記載しています。
 
@@ -116,7 +116,7 @@ notepad (Join-Path $configHome 'config.json')
 Get-Content (Join-Path $env:LOCALAPPDATA 'UnifiedVanillaSave\UnifiedVanillaSave.log') -Tail 80 -Wait
 ```
 
-起動ごとの時刻と `Audit accepted`、`First backup verified`、`ACTIVE: only GetProfileDir patched` を確認します。`INACTIVE`、例外、競合owner表示があればプレイせず終了してください。ローダー自体の失敗では専用ログも出ないため、Godot/ゲームのログも `user://` のログフォルダで確認します。固定のファイル名は実機に合わせてください。
+起動ごとの時刻と `Audit accepted`、`First backup verified`、`PATCH_INSTALLED` を確認します。`INACTIVE`、例外、競合owner表示があればプレイせず終了してください。旧版の `ACTIVE` もパッチ適用の意味であり、動作確認の結果ではありません。ローダー自体の失敗では専用ログも出ないため、Godot/ゲームのログも `user://` のログフォルダで確認します。固定のファイル名は実機に合わせてください。
 
 実機では次を確認し、ゲームバージョン・ハッシュ・結果を記録します。最初は退避済みのテスト用データで実施してください。
 
@@ -124,7 +124,7 @@ Get-Content (Join-Path $env:LOCALAPPDATA 'UnifiedVanillaSave\UnifiedVanillaSave.
 - 本MODありで変更・保存→終了→MODなしで同じ変更を読めること。全profile、ラン中断再開、履歴、設定も確認。
 - 保存時刻/ハッシュを比較し、バニラ側へ書き込み、`modded` 側を変更していないこと。コピーや同期による一致でないこと。
 - グローバルMOD状態、ゲームプレイMOD一覧、実績等の元の判定が維持されること。
-- 旧統合MODなどとの競合、壊したテスト用バックアップ、ゲーム更新時のハッシュ不一致でACTIVEにならないこと。
+- 旧統合MODなどとの競合、壊したテスト用バックアップ、ゲーム更新時のハッシュ不一致でパッチが適用されないこと。
 - [マルチ確認表](docs/RESEARCH.md)の接続・再接続・保存再開を両ホスト役で確認すること。
 
 他MODの独自カード等を含むランをバニラ側に保存すると、そのMODを外したゲームで読めなくなる場合があります。本MODはセーブ形式や独自コンテンツの互換性を変換しません。プロフィール共有が適切なMOD構成で使用してください。
@@ -144,3 +144,36 @@ Get-ChildItem -LiteralPath (Join-Path $backup 'files') -Force | Copy-Item -Desti
 ```
 
 Cloudキャッシュ `<Steam>\userdata\<AccountId>\2868840\remote` は本MODのバックアップ対象外です。実ファイルを別途退避し、Steamが新しいコピーを再適用しないようCloudの復元競合を確認してから同期を再開します。自動同期・自動削除・自動復元は実装していません。
+
+
+## 初期化するが保存先が共通にならない場合
+
+現実装の対象は `GetProfileDir(int)` だけです。別オーバーロードの直接呼び出し、インライン化、初期化前にキャッシュされた保存先、別の保存先処理があると、パッチ適用だけでは共通化できません。グローバルMOD判定をfalseにして回避せず、実DLLの処理を確認します。
+
+まずゲームを終了し、バニラ側・modded側を両方保全してください。既存バックアップからの自動復元や、どちらかのセーブの削除・同期は行いません。
+
+追加ツールを使わない静的診断（.NET 9 SDKのみ必要）:
+
+```powershell
+# $data は実ゲームのsts2.dllがあるフォルダ
+New-Item -ItemType Directory -Path .\local -Force | Out-Null
+dotnet build .\tools\SaveAudit -c Release
+if ($LASTEXITCODE -ne 0) { throw 'Diagnostic tool build failed' }
+$report = & dotnet .\tools\SaveAudit\bin\Release\net9.0\SaveAudit.dll paths (Join-Path $data 'sts2.dll')
+if ($LASTEXITCODE -ne 0) { throw 'Diagnostic report failed' }
+$report | Set-Content -Encoding UTF8 .\local\save-path-report.txt
+```
+
+これはDLLを実行せず、`UserDataPathProvider` 全メソッドのIL・名前解決した参照・文字列・他の型からの直接参照を出力します。セーブは読み書きしません。反射/間接呼び出し、ネイティブ呼び出し、キャッシュされたパスや実際のファイルI/Oをすべて網羅するものではありません。
+
+C#コードも必要な場合は次の固定版を使用します。最新版のilspycmdは.NET 9 SDKが扱えないツール設定形式の可能性があります。
+
+```powershell
+dotnet tool install --tool-path .\local\ilspy9 ilspycmd --version 9.1.0.7988 --allow-roll-forward
+.\local\ilspy9\ilspycmd.exe -t MegaCrit.Sts2.Core.Saves.UserDataPathProvider (Join-Path $data 'sts2.dll') |
+    Set-Content -Encoding UTF8 .\local\UserDataPathProvider.cs
+```
+
+`local/UserDataPathProvider.cs` は上記コマンドによる出力です。ゲームやMODは自動作成しません。ILSpyCmd固定版はLinuxの.NET 9環境で導入・起動・fixture逆コンパイルを確認しています。インストール済みの場合は `dotnet tool list --tool-path .\local\ilspy9` でバージョンを確認してください。
+
+診断レポートまたは逆コンパイルコードと、今回の起動分のMODログを使って原因を絞ります。0.1.1のログは、ロードしたMODのパス/ハッシュ・ゲームDLLのパス/MVID、`PATCH_INSTALLED`、最初の最大16種類のprofileについて `PROFILE_ROUTE` を記録します。`PROFILE_ROUTE` がない場合は、単一引数版が未呼び出しかパッチが迂回された可能性があります。表示されても、最終保存先や全処理の通過を保証しません。診断のために新しい進行を保存する必要はありません。

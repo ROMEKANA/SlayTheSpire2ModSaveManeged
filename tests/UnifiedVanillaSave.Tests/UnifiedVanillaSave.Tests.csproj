@@ -1,4 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
-  <ItemGroup><ProjectReference Include="../../src/UnifiedVanillaSave.Core/UnifiedVanillaSave.Core.csproj" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/UnifiedVanillaSave.Core/UnifiedVanillaSave.Core.csproj" />
+    <ProjectReference Include="../../tools/SaveAudit/SaveAudit.csproj" />
+  </ItemGroup>
 </Project>

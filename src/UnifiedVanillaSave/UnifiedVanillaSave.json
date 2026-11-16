@@ -3,7 +3,7 @@
   "name": "Unified Vanilla Save",
   "author": "ROMEKANA",
   "description": "Uses vanilla profile directories without changing global mod detection. Requires a local compatibility audit and first backup.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "min_game_version": "0.107.1",
   "has_pck": false,
   "has_dll": true,
