@@ -17,7 +17,28 @@ The user's runtime logs identify game 0.113.1 and assembly SHA256 `62ECBE91093E1
 
 Inlining or direct-overload callers could explain the failure. Neither has been confirmed by runtime/JIT tracing. Patch installation is not evidence of successful routing.
 
-## 0.2.0 targets
+## Call-site evidence after the 0.2.0 failure
+
+The user's static caller report establishes a coverage gap, independently of the unconfirmed inlining/cache hypotheses:
+
+| Caller | Direct provider dependency |
+| --- | --- |
+| SaveManager.GetProfileScopedPath, DeleteProfile, CleanupTemporaryFiles | GetProfileDir(int) |
+| PrefsSaveManager.GetPrefsPath | GetProfileDir(int, bool?) |
+| ProgressSaveManager.GetProgressPathForProfile | GetProfileDir(int, bool?) |
+| RunSaveManager.GetRunSavePath | GetProfileDir(int, bool?) |
+| RunHistorySaveManager.GetHistoryPath | GetProfileDir(int, bool?) |
+| ProfileSaveManager.GetProfileSavePath | GetAccountDir(bool?) |
+| SaveManager.InitProfileId, migration/archive operations | GetProfileScopedBasePath |
+| Profile UI buttons and a debug replay writer | GetProfileScopedPath |
+
+RunSaveManager.GetRunSavePath itself has signature static string(int, string, bool?); its provider dependency is the two-argument GetProfileDir. The abbreviated table does not define new patch contracts.
+
+Thus the provider's two final-path helpers do not cover all real save-path construction. The observed base-path correction can coexist with unchanged progression/run/history/preferences paths. Read the SaveManager and manager implementations, nullable argument handling, backing storage and initialization order before choosing replacements. Do not add speculative patches from names alone.
+
+`scripts/Export-SaveSources.ps1` exports the provider, SaveManager and five manager types from the same DLL into ignored local/save-sources.txt. It reads metadata/source through pinned ILSpyCmd; it does not execute the game or access saves. Generated source is diagnostic input, not material to commit or ship.
+
+## 0.2.0 targets (installed implementation; acceptance failed)
 
 Patch only the two final path builders above with postfixes. Preserve the original platform, user ID, profile and dataType; remove only the account-level `modded/` segment. Do not patch global mod state, models, RNG, achievements or networking. Leave both GetProfileDir overloads, GetAccountDir, explicit forceModState=true probes, account-scoped paths and legacy paths alone.
 

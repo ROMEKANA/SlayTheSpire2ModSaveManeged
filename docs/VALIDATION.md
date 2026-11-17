@@ -91,3 +91,13 @@ The owner reported that the automatic installation instructions were clear and s
 The reusable installation pattern and instruction format are recorded in MOD_INSTALLATION_PLAYBOOK.md and linked from AGENTS.md. This documentation change does not alter or claim to fix runtime behavior. The next investigation requires current-build routing/initialization logs and actual save behavior, not another installation redesign.
 
 The subsequently supplied 0.2.0 log confirms the final-builder DLL was loaded, both targets passed their audits, and GetProfileScopedBasePath returned a corrected vanilla path for profile1. It contains no GetProfileScopedPath routing observation. This narrows the evidence to a corrected base-path return, not actual save reads/writes. Alternate callers, inlining, pre-initialization caches and profile selection remain hypotheses. Raw account IDs and user paths are intentionally omitted from this record.
+
+
+## Static caller report identifies the missing save routes
+
+The supplied caller report confirms that progress, run, history and preferences managers call GetProfileDir(int,bool?) directly. ProfileSaveManager calls GetAccountDir(bool?) and SaveManager has additional direct GetProfileDir(int) callers. Provider GetProfileScopedPath is used by profile UI/debug code; the base helper also serves initialization/migration/deletion. The two 0.2.0 targets are not sufficient to cover save construction. No raw user paths/account IDs are retained here.
+
+Added Export-SaveSources.ps1 to collect the seven relevant implementations using the existing three-line paths file and pinned ILSpyCmd, without executing the game or changing saves/config/installations. Runtime patch behavior is unchanged pending source evidence.
+
+
+Linux/PowerShell 7.5.2 checks for the source exporter passed: script syntax, a real pinned ILSpyCmd export against the test fixture DLL via the three-line paths file, previous-report preservation, and missing-type failure without replacing a valid report. Fixture DLL/save/config markers and installation state were unchanged. This is not a decompilation of the actual game DLL or a functional patch test.

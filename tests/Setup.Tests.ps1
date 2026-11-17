@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
-foreach ($name in @('Setup.ps1', 'Build.ps1', 'Install.ps1')) {
+foreach ($name in @('Setup.ps1', 'Build.ps1', 'Install.ps1', 'Export-SaveSources.ps1')) {
     $tokens = $null; $errors = $null
     $null = [Management.Automation.Language.Parser]::ParseFile((Join-Path $repo "scripts/$name"), [ref]$tokens, [ref]$errors)
     if ($errors.Count) { throw ($errors | Out-String) }
