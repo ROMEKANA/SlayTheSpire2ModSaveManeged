@@ -82,3 +82,12 @@ The game DLL has not been supplied. MOD compilation against actual assemblies, r
 - The paths file has exactly three lines: game root, save root, config directory. Runtime files and resolved personal paths remain Git-ignored. Unknown DLLs require a matching prior audit or the fingerprint paired with the supplied/reviewed v0.113.1 source. No manual config/audit-flag edits are required for that build.
 - Linux/.NET 9 independent checks: 19/19 passed; Core/SaveAudit builds passed without warnings/errors. Added policy rejection, fingerprint recognition, preservation and repeatability checks.
 - Linux/PowerShell fixture checks cover syntax, automatic three-line generation, config migration and backup destination preservation, repeated installation, unknown-DLL rejection, rollback and malformed path files. These use text installation payloads and a test metadata assembly; they are not real-game builds or Windows acceptance tests.
+
+
+## Latest manual feedback: setup accepted, feature still failing
+
+The owner reported that the automatic installation instructions were clear and should be retained for this and other MOD repositories. They also reported another run with no load-time error but no save unification. Record setup usability as accepted feedback; feature acceptance remains failed. No new runtime cause or successful save routing has been established by this report.
+
+The reusable installation pattern and instruction format are recorded in MOD_INSTALLATION_PLAYBOOK.md and linked from AGENTS.md. This documentation change does not alter or claim to fix runtime behavior. The next investigation requires current-build routing/initialization logs and actual save behavior, not another installation redesign.
+
+The subsequently supplied 0.2.0 log confirms the final-builder DLL was loaded, both targets passed their audits, and GetProfileScopedBasePath returned a corrected vanilla path for profile1. It contains no GetProfileScopedPath routing observation. This narrows the evidence to a corrected base-path return, not actual save reads/writes. Alternate callers, inlining, pre-initialization caches and profile selection remain hypotheses. Raw account IDs and user paths are intentionally omitted from this record.

@@ -28,6 +28,13 @@
 - Match the application's existing user-facing language unless the task requests otherwise.
 - Do not create elaborate planning documents, architecture layers, or process scaffolding for routine tasks. Add focused technical notes only when they materially help later maintenance.
 
+## MOD setup and user instructions
+
+- For MOD installation/setup work, follow [the reusable installation playbook](docs/MOD_INSTALLATION_PLAYBOOK.md).
+- Retain one-command setup, automatic config generation/migration, and the ignored three-line machine-path file. Present each action on one line followed by one single-line command; avoid state carried in shell variables across chat turns.
+- The owner accepted the setup instructions, but reported that save unification still failed. Treat setup/loader success and real feature acceptance as separate outcomes.
+- When adapting the pattern to another repository, carry over the playbook and link it from that repository's instructions; check its game contracts and publication policy independently.
+
 ## Dependencies and changes
 
 - You may add, remove, or update dependencies without routine approval when justified by the task.
