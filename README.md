@@ -10,12 +10,15 @@ Slay the Spire 2のMODあり・なしでバニラ側のプロフィール保存�
 
 ## 他のリポジトリへ持っていくAI向け資料
 
-どちらもリポジトリのルート直下にあります。
+資料はいずれもリポジトリのルート直下にあります。
 
 | 持っていく先 | コピーするファイル |
 | --- | --- |
 | ゲームを問わない制作・開発 | [AGENTS.md](AGENTS.md) |
 | Slay the Spire 2のMOD制作 | [AGENTS.md](AGENTS.md) と [STS2_MODDING.md](STS2_MODDING.md) |
+| 同じ・似た保存先統合MODの再製作 | 上記に加えて [DESIGN_AND_LESSONS.md](DESIGN_AND_LESSONS.md) |
+
+DESIGN_AND_LESSONS.mdはこのMODの目的・保存経路・0.3.0の仕組み・失敗した方法・解決根拠をまとめた設計記録です。一般仕様だけのspec.mdとは区別しています。
 
 移動先にも指示ファイルがある場合は、既存ルールを保って統合してください。これらはCodex向けの資料です。localの実パス・生成config・診断レポート・セーブ・ゲームDLL・バックアップを一緒に持っていく必要はありません。
 

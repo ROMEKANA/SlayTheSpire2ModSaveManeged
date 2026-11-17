@@ -1,5 +1,7 @@
 # Save routing contract for 0.3.0
 
+For the consolidated project specification, mechanism and failed approaches, start with [DESIGN_AND_LESSONS.md](../DESIGN_AND_LESSONS.md).
+
 ## Evidence and the previous failure
 
 The user provided the v0.113.1 provider, SaveManager, and Profile/Prefs/Progress/Run/RunHistory manager source exported from assembly SHA256 `62ECBE91093E1FA862DE4329AAC865209DCB297804CAF0F0520D92D8C0B4A9C3`. The game DLL itself is not available in Cloud. Generated game source and raw user logs are not committed.

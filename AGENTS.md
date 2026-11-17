@@ -71,6 +71,7 @@
 
 ## Reuse and game-specific notes
 
+- When root DESIGN_AND_LESSONS.md is present, read it before related changes for project intent, mechanism, rejected approaches and acceptance evidence. Keep that project-specific history out of this universal file.
 - Keep universal working rules in this root AGENTS.md. Keep game/framework-specific contracts in a separate root document rather than duplicating general instructions.
 - For Slay the Spire 2 work, read STS2_MODDING.md when present. It is optional for unrelated projects; this AGENTS.md must remain useful on its own.
 - When moving these instructions to another repository, merge with its existing rules and respect project-specific constraints. Do not copy project identities, game fingerprints, approvals, personal paths or local artifacts as universal defaults.
