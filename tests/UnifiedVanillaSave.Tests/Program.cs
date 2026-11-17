@@ -124,6 +124,41 @@ var tests = new (string Name, Action Run)[]
     }),
     ("path report rejects an assembly without the provider", () =>
         Throws<MissingMemberException>(() => SaveAudit.PathReport.Write(typeof(Compatibility).Assembly.Location, TextWriter.Null))),
+    ("automatic setup recognizes the source-reviewed build without manual flags", () =>
+    {
+        var config = SaveAudit.SetupConfig.Choose(null, SaveAudit.SetupConfig.ReviewedGameHash, "user-root", "backup-root");
+        if (!config.CallersAndVanillaLayoutVerified) throw new Exception("Reviewed build not recognized");
+        Equal("0.113.1", config.AuditedGameVersion);
+        Equal("backup-root", config.BackupDirectory);
+    }),
+    ("automatic setup rejects an unknown game without a matching approved audit", () =>
+    {
+        Throws<InvalidOperationException>(() => SaveAudit.SetupConfig.Choose(null, "unknown", "user", "backup"));
+        var previous = new AuditConfig("old", "", "user", "backup", "version", true);
+        Throws<InvalidOperationException>(() => SaveAudit.SetupConfig.Choose(previous, "new", "user", "backup"));
+        Throws<InvalidOperationException>(() => SaveAudit.SetupConfig.Choose(previous with { CallersAndVanillaLayoutVerified = false }, "old", "user", "backup"));
+    }),
+    ("automatic setup preserves existing backup settings and is repeatable without touching saves", () => WithTree((source, backup) =>
+    {
+        var assembly = typeof(MegaCrit.Sts2.Core.Saves.UserDataPathProvider).Assembly.Location;
+        var configPath = source + ".config";
+        var existing = new AuditConfig(Compatibility.HashFile(assembly), "legacy", source, backup, "fixture", true);
+        var original = System.Text.Json.JsonSerializer.Serialize(existing);
+        File.WriteAllText(configPath, original);
+        try
+        {
+            SaveAudit.SetupConfig.Run(assembly, source, configPath, backup + "-unused");
+            var config = Compatibility.ReadConfig(configPath);
+            Equal(backup, config.BackupDirectory);
+            if (config.PathMethodIlSha256?.Count != 2) throw new Exception("Missing target hashes");
+            var current = File.ReadAllText(configPath);
+            SaveAudit.SetupConfig.Run(assembly, source, configPath, backup + "-unused");
+            Equal(current, File.ReadAllText(configPath));
+            Equal("vanilla", File.ReadAllText(Path.Combine(source, "profile1", "saves", "progress.save")));
+            Equal("modded", File.ReadAllText(Path.Combine(source, "modded", "profile1", "saves", "progress.save")));
+        }
+        finally { File.Delete(configPath); }
+    })),
     ("assembly change rejected before binding a target", () =>
         Throws<InvalidOperationException>(() => Compatibility.ResolvePaths(typeof(Compatibility).Assembly,
             new AuditConfig(new string('0', 64), "", "", "", "test", true))))

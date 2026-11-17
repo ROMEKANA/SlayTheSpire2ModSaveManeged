@@ -2,6 +2,16 @@ using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using UnifiedVanillaSave.Core;
 
+if (args.Length == 5 && args[0] == "setup-config")
+{
+    try { SaveAudit.SetupConfig.Run(args[1], args[2], args[3], args[4]); }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine("Automatic setup stopped: " + ex.Message);
+        Environment.ExitCode = 1;
+    }
+    return;
+}
 if (args.Length == 3 && args[0] == "path-config")
 {
     var backup = SaveAudit.PathMethodAudit.UpdateConfig(args[1], args[2]);
@@ -22,7 +32,7 @@ if (args.Length == 3 && args[0] == "backup")
 }
 if (args.Length != 2 || args[0] != "inspect")
 {
-    Console.Error.WriteLine("Usage: SaveAudit path-config <sts2.dll> <config.json> | paths <sts2.dll> | inspect <sts2.dll> | backup <Godot-user-data-root> <backup-directory>");
+    Console.Error.WriteLine("Usage: SaveAudit setup-config <sts2.dll> <user-root> <config.json> <fallback-backup> | path-config <sts2.dll> <config.json> | paths <sts2.dll> | inspect <sts2.dll> | backup <Godot-user-data-root> <backup-directory>");
     Environment.ExitCode = 2;
     return;
 }

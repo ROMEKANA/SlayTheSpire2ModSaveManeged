@@ -74,3 +74,11 @@ The user provided the v0.113.1 provider source and runtime logs. The single-argu
 - Linux/.NET 9 independent tests: 16/16 passed. Core/SaveAudit builds: zero warnings/errors. Cases cover nullable state inputs, existing vanilla paths, three platforms, multiple profiles, ulong max ID, modded inside suffixes, unexpected layouts, either target's IL mismatch, and preservation of config/audit flags/backup settings.
 
 The game DLL has not been supplied. MOD compilation against actual assemblies, real Harmony routing, initializer order/caches/inlining, and successful bidirectional progress sharing remain unverified. Passing independent tests is not runtime acceptance.
+
+
+## Automatic setup and three-line paths file
+
+- Added Setup.ps1: creates local/paths.txt from Windows defaults, builds, generates/migrates config, verifies/creates the first backup, preserves the previous MOD outside mods and installs. Failed installation restores the previous directory and preserves partial files outside mods.
+- The paths file has exactly three lines: game root, save root, config directory. Runtime files and resolved personal paths remain Git-ignored. Unknown DLLs require a matching prior audit or the fingerprint paired with the supplied/reviewed v0.113.1 source. No manual config/audit-flag edits are required for that build.
+- Linux/.NET 9 independent checks: 19/19 passed; Core/SaveAudit builds passed without warnings/errors. Added policy rejection, fingerprint recognition, preservation and repeatability checks.
+- Linux/PowerShell fixture checks cover syntax, automatic three-line generation, config migration and backup destination preservation, repeated installation, unknown-DLL rejection, rollback and malformed path files. These use text installation payloads and a test metadata assembly; they are not real-game builds or Windows acceptance tests.

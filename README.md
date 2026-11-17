@@ -1,166 +1,130 @@
 # UnifiedVanillaSave
 
-Slay the Spire 2 のMODあり・なしでバニラ側のプロフィール保存先を使う、外部MODに依存しないC# MODです。標準ローダーとゲーム同梱Harmonyを使用します。保存データの移行・相互コピー・双方向同期は行いません。例外は復元用の初回バックアップだけです。
+Slay the Spire 2のMODあり・なしでバニラ側のプロフィール保存先を使用する、独立したC# MODです。標準ローダーとゲーム同梱Harmonyを使い、BaseLib/RitsuLibには依存しません。セーブの移行・双方向同期は行わず、初回バックアップだけを作成します。
 
-**現状は実機検証前の開発版です。** ゲームDLLなしで検証できるCoreと監査ツールを実装しています。MOD本体の実ゲームDLL参照ビルド、起動、現行版への適合、マルチ互換性は未確認です。`affects_gameplay:false` はutilityとしての暫定設定で、動作保証ではありません。[調査・パッチ候補・必須監査](docs/RESEARCH.md)を先に確認してください。
+0.2.0では `GetProfileScopedPath` と `GetProfileScopedBasePath` の完成した戻り値から、アカウント直下の `modded/` 成分だけを除去します。グローバルMOD判定と明示的な旧保存先の照会は変更しません。`affects_gameplay:false` はローカルutilityとして採用していますが、マルチ互換性は未確認です。
 
-## 構成
+**独立テストの成功と実機での進行共有成功は別です。** 実ゲームDLLでのビルド・起動・MODあり/なしの進行共有はローカルPCで確認します。[調査とパッチ契約](docs/RESEARCH.md)、[検証記録](docs/VALIDATION.md)も参照してください。
 
-- `src/UnifiedVanillaSave`: 標準initializer、対象を限定したHarmony prefix、競合検出、ログ。Coreのソースを含めて単一MOD DLLとしてビルド。
-- `src/UnifiedVanillaSave.Core`: ゲーム非依存の監査チェックとバックアップ。
-- `tools/SaveAudit`: ゲームDLLを実行せずメタデータ/ILハッシュを表示するツール、初回バックアップコマンド。
-- `tests/UnifiedVanillaSave.Tests`: 外部テストパッケージ不要の独立したテストランナー。
+## Windows: 1コマンドのセットアップ
 
-0.2.0では最終プロフィール用パスを返す `GetProfileScopedPath` と `GetProfileScopedBasePath` の戻り値だけを補正し、`IsRunningModded` などのゲーム全体のMOD判定は変更しません。メソッドの契約が現行DLLと一致することはローカルで監査します。監査前・DLL更新後・バックアップ失敗・既知のHarmony競合時には有効化しません。initializerの失敗後にゲームが続行する可能性があるため、**Loaded表示やパッチ適用成功は、保存先共通化の成功を意味しません。** `PATCH_INSTALLED` はパッチ適用、`PROFILE_ROUTE` は最終パスビルダーの補正前後を示すだけです。保存先共通化の成功は、実ファイルとMODあり/なしの往復確認で判断してください。
+.NET 9 SDKが必要です。.NET 10 SDKだけではglobal.jsonの要件を満たしません。9と10は並行インストールできます。
 
-検証済みの結果と未実施項目は [クラウド検証記録](docs/VALIDATION.md) に記載しています。
-
-## Linux / Cloudでの検証
-
-.NET 9 SDKを使用します。`global.json` は9.0.203以降の9.0 feature bandを許容します。ゲーム実体が別TFMの場合は `Directory.Build.props` とSDK設定を合わせて見直してください。
-
-```bash
-bash scripts/test.sh
-# または
- dotnet run --project tests/UnifiedVanillaSave.Tests -c Release
- dotnet build tools/SaveAudit -c Release
-```
-
-制限環境では `DOTNET_CLI_HOME=/tmp/uvs-dotnet-home`、`NUGET_PACKAGES=/tmp/uvs-nuget` を設定できます。ゲームDLLなしのMOD本体ビルドは明示エラーで停止します。ゲーム型の代用品でビルド成功を装う処理はありません。CIもCore/監査ツールのみを対象にします。
-
-## Windowsでビルド
-
-.NET 9 SDK、PowerShell、ローカルのゲームを用意してください。**.NET 10 SDKだけでは、このリポジトリのglobal.jsonを満たしません。** .NET 9 SDKは10と並行インストールできます。9.0.203そのものではなく、それ以降の9.0 SDKでも構いません。
-
+.NET 9 SDKを追加する（未導入の場合）。
 ```powershell
 winget install --id Microsoft.DotNet.SDK.9 --exact
-# インストール後にPowerShellを開き直して確認
-dotnet --list-sdks
+```
+
+PowerShellを開き直し、リポジトリ内で9.0系が選ばれることを確認する。
+```powershell
 dotnet --version
 ```
 
-`dotnet --version` がリポジトリ内で9.0系を表示することを確認します。リポジトリ直下にはsolution/projectがないため、直下の `dotnet build` / `dotnet publish` は使わず、以下の `Build.ps1` で対象プロジェクトとゲームDLL参照を指定します。
-
-ゲームを終了し、旧セーブ統合MODを `mods` の外へ移動します。名前変更だけで `mods` 配下に残すとmanifestが再検出される場合があります。
-
+リポジトリを更新する。
 ```powershell
-$game = 'C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2'
-# $game は例です。Steam > STS2 > 管理 > ローカルファイルを閲覧、で開いた実際の場所を指定。
-$data = Join-Path $game 'data_sts2_windows_x86_64'
-$game
-Test-Path -LiteralPath $game -PathType Container
-Test-Path -LiteralPath (Join-Path $data 'sts2.dll') -PathType Leaf
-Get-Content (Join-Path $data 'sts2.runtimeconfig.json')
-dotnet --info
-.\scripts\Build.ps1 -GameDataDir $data
+git pull --ff-only origin main
 ```
 
-`Test-Path` がFalseの場合は先にパスを直してください。`$game` はゲームのインストール先ルートであり、このソースのフォルダや `data_...` フォルダではありません。`$game` が正しい場合にDLLの実際の配置を確認するには次を実行します。
-
+ゲームを終了し、セットアップする。
 ```powershell
-Get-ChildItem -LiteralPath $game -Filter sts2.dll -Recurse -File | Select-Object -ExpandProperty FullName
-# 表示されたsts2.dllの親ディレクトリを $data に設定
-# $data = '実際のゲームルート内のDLL格納フォルダ'
+.\scripts\Setup.ps1
 ```
 
-標準以外の配置にも対応します。
+初回は `local/paths.txt` を自動作成し、ビルド、設定の生成/更新、初回バックアップの作成/検証、旧MODの退避、新MODのインストールまで行います。既存configのバックアップ先（例: Dドライブ）は維持します。未設定なら設定ディレクトリの `backups/first` を使います。設定ファイルの手編集は不要です。
 
-```powershell
-.\scripts\Build.ps1 -GameDataDir $data `
-  -GameAssemblyPath 'D:\references\sts2.dll' `
-  -HarmonyAssemblyPath 'D:\references\0Harmony.dll' `
-  -GodotAssemblyPath 'D:\references\GodotSharp.dll'
-```
+現在のソース確認済みゲームDLLのフィンガープリント、または同一DLLに対する既存の確認済み監査記録を使用します。未知のDLLへ更新されていた場合は、configや旧MODを置き換えず停止します。型名/メソッドの意味を推測して有効化したり、監査済みフラグを手でtrueにする手順にはしません。
 
-`.csproj` にも同名のMSBuildプロパティ、`GameDataDir`、`GameDir` を指定可能です。参照は `Private=false`。成果物 `artifacts/mods/UnifiedVanillaSave/` は `UnifiedVanillaSave.dll` と `UnifiedVanillaSave.json` の2ファイルだけです。ゲームDLL・Harmony・Godot・PCKは配布もGitへのコミットもしません。
+旧MODは設定ディレクトリの `previous-mod-*` へ保存します。コピーに失敗したら旧MODを戻し、不完全な新ファイルも `failed-install-*` に保全します。ゲームDLLは同梱せず、実ゲームDLLによるビルドが失敗した場合はインストールしません。
 
-## ローカル監査・初回バックアップ・設定
+## 3つの場所は別ファイルに保存
 
-1. [必須監査項目](docs/RESEARCH.md)に従ってILSpyで対象と呼び出し元を確認します。対象は `MegaCrit.Sts2.Core.Saves.UserDataPathProvider` の `GetProfileScopedPath(int, string, PlatformType?, ulong?)` と `GetProfileScopedBasePath(int, PlatformType?, ulong?)`（いずれもstatic/string戻り値）です。シグネチャの一致だけで使用可能と判断しないでください。
-2. 次の出力と、ゲーム画面のバージョン、監査結果を手元に保存します。SHA256は更新検知用で、ゲームの意味上の互換性を証明しません。
+`local/paths.txt` は上から **ゲーム本体、セーブのルート、MOD設定ディレクトリ** の順で、3行だけです。引用符や見出しは不要です。初回自動作成時は標準のSteam配置と、現在のWindowsユーザーのAPPDATA/LOCALAPPDATAを実際の絶対パスに展開して保存します。
 
-```powershell
-dotnet run --project tools/SaveAudit -c Release -- inspect (Join-Path $data 'sts2.dll')
-```
-
-3. Godot `user://` の実際のルートを特定します。資料上は `%APPDATA%\SlayTheSpire2` ですが、実際のパスを確認してください。Steamアカウント配下や個別profileではなく、ゲームのuserデータ全体のルートを指定します。実行時にもGodotの解決結果と照合します。
-4. **ゲームを閉じ、Steam Cloudの同期を完了/一時停止した状態**で初回バックアップを作成します。空き容量はuserデータ全体分が必要です。ルート内のバニラ側・modded側の両方を保護します。Cloudキャッシュは別途保全してください。
-
-```powershell
-$userRoot = Join-Path $env:APPDATA 'SlayTheSpire2'
-$backup = 'D:\STS2-backups\UnifiedVanillaSave-first'
-dotnet run --project tools/SaveAudit -c Release -- backup $userRoot $backup
-if ($LASTEXITCODE -ne 0) { throw 'Backup failed' }
-```
-
-バックアップは指定先の `files/` とSHA256付き `receipt.json` に保存します。途中失敗は有効なバックアップとして公開しません。既存バックアップは検証だけ行い、以後の進行で上書きしません。ルートの内外関係、リンク/reparse point、同時バックアップ、コピー中の変更、破損、不完全な既存バックアップを拒否します。元セーブへは書き込みません。空のディレクトリは記録しません。Cloudや別プロセスを停止する機能はありません。
-
-起動時にも初回バックアップを作成/検証しますが、起動中のログなどの変更で失敗する可能性があるため上記のオフライン作成を推奨します。バックアップを手動編集せず、別のuserルートに使い回さないでください。
-
-5. [config.example](docs/config.example) を次の場所へコピーし、ハッシュ・絶対パス・実ゲームバージョンを入力します。呼び出し元/バニラレイアウト/初期化順序を実際に確認してから `CallersAndVanillaLayoutVerified` を `true` にします。configはMOD配下へ置きません。
-
-```powershell
-$configHome = Join-Path $env:LOCALAPPDATA 'UnifiedVanillaSave'
-New-Item -ItemType Directory -Path $configHome -Force | Out-Null
-Copy-Item .\docs\config.example (Join-Path $configHome 'config.json')
-notepad (Join-Path $configHome 'config.json')
-```
-
-別の設定場所を使う場合は、ゲームプロセスに継承される環境変数 `UVS_CONFIG` にconfigの絶対パスを設定します。起動済みのSteamにはPowerShellの環境変数が伝わらない点に注意してください。通常は既定パスを推奨します。
-
-## インストール・ログ・実機確認
-
-```powershell
-.\scripts\Install.ps1 -GameDir $game -GameDataDir $data
-# ゲームを通常どおり起動した後、別のPowerShellでログを確認
-Get-Content (Join-Path $env:LOCALAPPDATA 'UnifiedVanillaSave\UnifiedVanillaSave.log') -Tail 80 -Wait
-```
-
-起動ごとの時刻と `Audit accepted`、`First backup verified`、`PATCH_INSTALLED` を確認します。`INACTIVE`、例外、競合owner表示があればプレイせず終了してください。旧版の `ACTIVE` もパッチ適用の意味であり、動作確認の結果ではありません。ローダー自体の失敗では専用ログも出ないため、Godot/ゲームのログも `user://` のログフォルダで確認します。固定のファイル名は実機に合わせてください。
-
-実機では次を確認し、ゲームバージョン・ハッシュ・結果を記録します。最初は退避済みのテスト用データで実施してください。
-
-- MODなしで既存の進行/ランを確認→終了→本MODありで同じ進行を読めること。
-- 本MODありで変更・保存→終了→MODなしで同じ変更を読めること。全profile、ラン中断再開、履歴、設定も確認。
-- 保存時刻/ハッシュを比較し、バニラ側へ書き込み、`modded` 側を変更していないこと。コピーや同期による一致でないこと。
-- グローバルMOD状態、ゲームプレイMOD一覧、実績等の元の判定が維持されること。
-- 旧統合MODなどとの競合、壊したテスト用バックアップ、ゲーム更新時のハッシュ不一致でパッチが適用されないこと。
-- [マルチ確認表](docs/RESEARCH.md)の接続・再接続・保存再開を両ホスト役で確認すること。
-
-他MODの独自カード等を含むランをバニラ側に保存すると、そのMODを外したゲームで読めなくなる場合があります。本MODはセーブ形式や独自コンテンツの互換性を変換しません。プロフィール共有が適切なMOD構成で使用してください。
-
-## 0.1.xから0.2.0への更新
-
-ゲーム終了後に実行します。旧 `MethodIlSha256` はラッパーのハッシュであり、新対象には使えません。既存設定と同じDLLであることを確認してから、2つの正確なシグネチャのILハッシュを追加します。ゲームDLLのハッシュが以前の設定と異なる場合は停止し、更新版の再監査が必要です。
-
-```powershell
-.\scripts\Build.ps1 -GameDataDir $data
-$configPath = Join-Path $env:LOCALAPPDATA 'UnifiedVanillaSave\config.json'
-dotnet run --project .\tools\SaveAudit -c Release -- path-config (Join-Path $data 'sts2.dll') $configPath
-if ($LASTEXITCODE -ne 0) { throw 'Path audit update failed' }
-```
-
-`path-config` は旧設定を `.bak` として保全し、`PathMethodIlSha256` に `GetProfileScopedPath` と `GetProfileScopedBasePath` を追加します。保存ルート・初回バックアップ先・バージョン・監査済みフラグは保持します。監査済みフラグがfalseならtrueに変えません。セーブの移動・同期・削除はしません。`UVS_CONFIG` を使っている場合はそのファイルを指定してください。
-
-旧MODフォルダは `mods` の外へ移し、新成果物をインストールします。
-
-```powershell
-$oldMod = Join-Path $game 'mods/UnifiedVanillaSave'
-if (Test-Path -LiteralPath $oldMod) {
-    $previous = Join-Path $env:LOCALAPPDATA ('UnifiedVanillaSave/previous-mod-' + [guid]::NewGuid().ToString('N'))
-    Move-Item -LiteralPath $oldMod -Destination $previous
-}
-.\scripts\Install.ps1 -GameDir $game -GameDataDir $data
-```
-
-再起動後、MOD一覧のバージョン0.2.0と今回のログを確認します。次のような補正が期待されます（ID/番号は実環境によります）。
-
+設定する場所の例（環境変数表記も読み込めます）:
 ```text
-PROFILE_ROUTE: GetProfileScopedPath; original='user://steam/123/modded/profile1/saves'; vanilla='user://steam/123/profile1/saves'
-PROFILE_ROUTE: GetProfileScopedBasePath; original='user://steam/123/modded/profile1'; vanilla='user://steam/123/profile1'
+C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2
+%APPDATA%\SlayTheSpire2
+%LOCALAPPDATA%\UnifiedVanillaSave
 ```
 
-これは補正後の戻り値の観測で、保存完了の証明ではありません。MODなし→ありの既存進行読み込み、あり→なしの変更反映を再確認してください。明示的な `GetProfileDir(id, true)` の旧保存先照会やアカウント共通パスは補正しません。
+3行の内容を確認する。
+```powershell
+Get-Content .\local\paths.txt
+```
+
+場所を変更する場合だけ3行ファイルを開く。
+```powershell
+notepad .\local\paths.txt
+```
+
+別の3行ファイルを使う。
+```powershell
+.\scripts\Setup.ps1 -PathsFile 'D:\STS2-settings\paths.txt'
+```
+
+`local/` はGit対象外です。個人名を含む実パス・生成config・バックアップ・ゲームDLLはコミットしません。[配布用テンプレート](scripts/paths.example.txt)も3行です。
+
+`UVS_CONFIG` が別の設定ファイルを指している場合、Setupは取り違えを避けて停止します。使用するconfigの親ディレクトリを3行目と一致させてください。
+
+## ログと実機確認
+
+セットアップ後、ゲームを起動してMODのバージョン0.2.0を確認します。
+
+既定の場所の最新ログを表示する。
+```powershell
+Get-Content (Join-Path $env:LOCALAPPDATA 'UnifiedVanillaSave\UnifiedVanillaSave.log') -Tail 80
+```
+
+`PATCH_INSTALLED` はパッチ適用、`PROFILE_ROUTE` はビルダーの戻り値の観測です。例:
+```text
+original='user://steam/123/modded/profile1/saves'; vanilla='user://steam/123/profile1/saves'
+```
+
+Loaded表示・これらのログだけで保存完了とは判断しません。INACTIVE/例外/競合ownerが出たらゲームを終了します。最初は保全済みのデータで以下を確認してください。
+
+- MODなしで進行/ランを確認して終了し、本MODありで同じ進行を読めること。
+- 本MODありで変更・保存して終了し、MODなしで同じ変更を読めること。全profile、ラン中断再開、履歴、設定も確認すること。
+- 実ファイルの時刻/ハッシュを確認し、バニラ側へ保存しmodded側を変更していないこと。
+- 実績やグローバルMOD状態、ゲームプレイMOD一覧が元の判定を保つこと。
+- マルチは両者なし/一方のみ/両者あり/ゲームプレイMOD併用をホスト役を交代して確認すること。
+
+独自カード等を含むランは、提供MODを外すと読めない場合があります。本MODはセーブ形式を変換しません。Steam Cloudのキャッシュも操作・同期しません。
+
+## 開発・診断用コマンド
+
+ゲームDLLなしの独立テストと監査ツールをビルドする（Bash）。
+```bash
+bash scripts/test.sh
+```
+
+セットアップ処理を一時フォルダ/fixtureで検証する（PowerShell、上記ビルド後）。
+```powershell
+.\tests\Setup.Tests.ps1
+```
+
+本体だけをビルドする（PowerShell、実ゲームDLLが必要）。
+```powershell
+.\scripts\Build.ps1 -GameDataDir 'C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64'
+```
+
+`.csproj` は `GameDir`、`GameDataDir` または `GameAssemblyPath`/`HarmonyAssemblyPath`/`GodotAssemblyPath` を指定できます。参照はPrivate=false。成果物は `artifacts/mods/UnifiedVanillaSave/` のMOD DLLとmanifestの2ファイルだけです。ルート直下のdotnet build/publishではなく対象プロジェクトかスクリプトを指定します。ゲームのruntimeconfigが.NET 9以外になったらSDK/TFMも見直します。
+
+DLLを実行せず、保存先ビルダーと直接呼び出し元のILを表示する（PowerShell）。
+```powershell
+dotnet run --project .\tools\SaveAudit -c Release -- paths 'C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\sts2.dll'
+```
+
+C#逆コンパイルが必要なときだけ、.NET 9で導入確認済みのILSpyCmdを入れる。
+```powershell
+dotnet tool install --tool-path .\local\ilspy9 ilspycmd --version 9.1.0.7988 --allow-roll-forward
+```
+
+プロバイダを `local/UserDataPathProvider.cs` に出力する（自動生成されるファイルではありません）。
+```powershell
+.\local\ilspy9\ilspycmd.exe -t MegaCrit.Sts2.Core.Saves.UserDataPathProvider 'C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\sts2.dll' | Set-Content -Encoding UTF8 .\local\UserDataPathProvider.cs
+```
+
+`SaveAudit paths` はセーブを読み書きせず、反射/間接呼び出し/キャッシュを網羅しません。CloudではゲームDLLなしの独立テストまでを検証し、実機結果は別に記録します。
 
 ## 無効化・復元
 
@@ -168,45 +132,34 @@ PROFILE_ROUTE: GetProfileScopedBasePath; original='user://steam/123/modded/profi
 
 初回状態に戻す場合は現在のuserデータ全体を別の場所へ退避し、空の元ルートへバックアップの `files/` の**内容**を復元します。上書きマージは新しいファイルが残るので避けてください。復元は初回以降の進行を戻します。
 
+3行ファイルから設定ディレクトリを取得する。
 ```powershell
-# ゲーム終了・Cloud同期停止後。$userRoot/$backupを再確認して実行。
-$quarantine = $userRoot + '.before-restore-' + (Get-Date -Format 'yyyyMMdd-HHmmss')
-Move-Item -LiteralPath $userRoot -Destination $quarantine
-New-Item -ItemType Directory -Path $userRoot | Out-Null
-Get-ChildItem -LiteralPath (Join-Path $backup 'files') -Force | Copy-Item -Destination $userRoot -Recurse -Force
+$configDir = [Environment]::ExpandEnvironmentVariables([IO.File]::ReadAllLines((Join-Path (Get-Location) 'local/paths.txt'))[2])
+```
+
+既存configから復元元と保存ルートを読み込む。
+```powershell
+$restore = Get-Content (Join-Path $configDir 'config.json') -Raw | ConvertFrom-Json
+```
+
+ゲームとCloud同期を停止した状態で、バックアップの整合性を確認する。
+```powershell
+dotnet run --project .\tools\SaveAudit -c Release -- backup $restore.UserDataRoot $restore.BackupDirectory
+```
+
+上のコマンドが成功したことを確認して、現在のデータを別の名前へ退避する。
+```powershell
+Move-Item -LiteralPath $restore.UserDataRoot -Destination ($restore.UserDataRoot + '.before-restore-' + [guid]::NewGuid().ToString('N'))
+```
+
+空の保存先を作る。
+```powershell
+New-Item -ItemType Directory -Path $restore.UserDataRoot | Out-Null
+```
+
+初回バックアップの内容を復元する。
+```powershell
+Get-ChildItem -LiteralPath (Join-Path $restore.BackupDirectory 'files') -Force | Copy-Item -Destination $restore.UserDataRoot -Recurse -Force
 ```
 
 Cloudキャッシュ `<Steam>\userdata\<AccountId>\2868840\remote` は本MODのバックアップ対象外です。実ファイルを別途退避し、Steamが新しいコピーを再適用しないようCloudの復元競合を確認してから同期を再開します。自動同期・自動削除・自動復元は実装していません。
-
-
-## 初期化するが保存先が共通にならない場合
-
-0.1.xは短い `GetProfileDir(int)` ラッパーだけを対象にしており、実機で統合されない報告がありました。0.2.0では提示されたv0.113.1のソースに基づき、最終パスビルダー2つに対象を変更しています。初期化前にキャッシュされた保存先、ビルダー自体のインライン化、別の保存先処理がある場合は引き続き実機確認が必要です。グローバルMOD判定をfalseにして回避せず、実DLLの処理を確認します。
-
-まずゲームを終了し、バニラ側・modded側を両方保全してください。既存バックアップからの自動復元や、どちらかのセーブの削除・同期は行いません。
-
-追加ツールを使わない静的診断（.NET 9 SDKのみ必要）:
-
-```powershell
-# $data は実ゲームのsts2.dllがあるフォルダ
-New-Item -ItemType Directory -Path .\local -Force | Out-Null
-dotnet build .\tools\SaveAudit -c Release
-if ($LASTEXITCODE -ne 0) { throw 'Diagnostic tool build failed' }
-$report = & dotnet .\tools\SaveAudit\bin\Release\net9.0\SaveAudit.dll paths (Join-Path $data 'sts2.dll')
-if ($LASTEXITCODE -ne 0) { throw 'Diagnostic report failed' }
-$report | Set-Content -Encoding UTF8 .\local\save-path-report.txt
-```
-
-これはDLLを実行せず、`UserDataPathProvider` 全メソッドのIL・名前解決した参照・文字列・他の型からの直接参照を出力します。セーブは読み書きしません。反射/間接呼び出し、ネイティブ呼び出し、キャッシュされたパスや実際のファイルI/Oをすべて網羅するものではありません。
-
-C#コードも必要な場合は次の固定版を使用します。最新版のilspycmdは.NET 9 SDKが扱えないツール設定形式の可能性があります。
-
-```powershell
-dotnet tool install --tool-path .\local\ilspy9 ilspycmd --version 9.1.0.7988 --allow-roll-forward
-.\local\ilspy9\ilspycmd.exe -t MegaCrit.Sts2.Core.Saves.UserDataPathProvider (Join-Path $data 'sts2.dll') |
-    Set-Content -Encoding UTF8 .\local\UserDataPathProvider.cs
-```
-
-`local/UserDataPathProvider.cs` は上記コマンドによる出力です。ゲームやMODは自動作成しません。ILSpyCmd固定版はLinuxの.NET 9環境で導入・起動・fixture逆コンパイルを確認しています。インストール済みの場合は `dotnet tool list --tool-path .\local\ilspy9` でバージョンを確認してください。
-
-診断レポートまたは逆コンパイルコードと、今回の起動分のMODログを使って原因を絞ります。0.2.0のログは、ロードしたMODのパス/ハッシュ・ゲームDLLのパス/MVID、`PATCH_INSTALLED`、両メソッド合わせて最初の最大32種類のprofile/メソッドの組について `PROFILE_ROUTE` を記録します。`PROFILE_ROUTE` がない場合は、最終パスビルダーが未呼び出しかパッチが迂回された可能性があります。表示されても、最終保存先や全処理の通過を保証しません。診断のために新しい進行を保存する必要はありません。

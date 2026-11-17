@@ -9,3 +9,6 @@ jobs:
         with:
           global-json-file: global.json
       - run: bash scripts/test.sh
+      - name: Setup script checks (fixture files only)
+        shell: pwsh
+        run: ./tests/Setup.Tests.ps1
