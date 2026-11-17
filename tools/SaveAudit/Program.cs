@@ -15,7 +15,7 @@ if (args.Length == 5 && args[0] == "setup-config")
 if (args.Length == 3 && args[0] == "path-config")
 {
     var backup = SaveAudit.PathMethodAudit.UpdateConfig(args[1], args[2]);
-    Console.WriteLine("Final path/base IL hashes recorded. Other audit flags and save paths retained.");
+    Console.WriteLine("Relative selector IL hashes recorded. Other audit flags and save paths retained.");
     Console.WriteLine("Previous config preserved: " + backup);
     return;
 }
@@ -43,28 +43,5 @@ Console.WriteLine("Assembly SHA256: " + Compatibility.HashFile(args[1]));
 Console.WriteLine("Assembly version: " + md.GetAssemblyDefinition().Version);
 Console.WriteLine("The following is metadata evidence, NOT confirmation of vanilla layout/callers.");
 foreach (var (name, hash) in SaveAudit.PathMethodAudit.Read(args[1]))
-    Console.WriteLine($"Final path builder {name} IL SHA256: {hash}");
-Console.WriteLine("The wrapper overloads below are diagnostic only; they are NOT patched by 0.2.0.");
-foreach (var handle in md.TypeDefinitions)
-{
-    var type = md.GetTypeDefinition(handle);
-    var name = md.GetString(type.Namespace) + "." + md.GetString(type.Name);
-    if (name != Compatibility.TargetType) continue;
-    foreach (var mh in type.GetMethods())
-    {
-        var method = md.GetMethodDefinition(mh);
-        if (md.GetString(method.Name) != Compatibility.TargetMethod) continue;
-        Console.WriteLine($"{name}.{Compatibility.TargetMethod}: attributes={method.Attributes}; signature blob={Convert.ToHexString(md.GetBlobBytes(method.Signature))}");
-        var isCandidate = (method.Attributes & System.Reflection.MethodAttributes.Static) != 0 &&
-            Convert.ToHexString(md.GetBlobBytes(method.Signature)) == "00010E08";
-        Console.WriteLine(isCandidate
-            ? "LEGACY WRAPPER: static string GetProfileDir(int32). Not patched by 0.2.0."
-            : "OTHER OVERLOAD: not patched by this version; audit direct callers before enabling.");
-        if (method.RelativeVirtualAddress != 0)
-        {
-            var il = pe.GetMethodBody(method.RelativeVirtualAddress).GetILBytes()!;
-            Console.WriteLine((isCandidate ? "Legacy wrapper IL SHA256: " : "Other overload IL SHA256 (do not use in config): ") + Compatibility.Hash(il));
-            Console.WriteLine("IL bytes: " + Convert.ToHexString(il));
-        }
-    }
-}
+    Console.WriteLine($"Relative selector {name} IL SHA256: {hash}");
+Console.WriteLine("Targets: GetAccountDir(bool?) and GetProfileDir(int,bool?). Default requests use vanilla; explicit probes retain their semantics.");

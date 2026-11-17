@@ -4,8 +4,10 @@ namespace MegaCrit.Sts2.Core.Saves
     public static class UserDataPathProvider
     {
         public static bool IsRunningModded { get; set; }
+        public static string GetAccountDir(bool? forceModState = null) => (forceModState ?? IsRunningModded) ? "modded" : "";
         public static string GetProfileDir(int id, bool? forceModState) =>
-            (forceModState ?? IsRunningModded ? "modded/" : "") + "profile" + id;
+            Join(GetAccountDir(forceModState), "profile" + id);
+        public static string Join(string parent, string child) => string.IsNullOrEmpty(parent) ? child : parent + "/" + child;
         public static string GetProfileDir(int id) => GetProfileDir(id, null);
         public static string GetProfileScopedPath(int id, string dataType,
             Platform.PlatformType? platformOverride = null, ulong? userIdOverride = null) =>

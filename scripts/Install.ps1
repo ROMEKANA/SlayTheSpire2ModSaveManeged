@@ -30,4 +30,4 @@ New-Item -ItemType Directory -Path $destination -Force | Out-Null
 foreach ($name in @('UnifiedVanillaSave.dll', 'UnifiedVanillaSave.json')) {
     Copy-Item -LiteralPath (Join-Path $source $name) -Destination $destination
 }
-Write-Host "Installed at $destination. Check PATCH_INSTALLED and PROFILE_ROUTE logs before playing."
+Write-Host "Installed at $destination. Check PATCH_INSTALLED and RELATIVE_ROUTE logs before playing."

@@ -55,7 +55,7 @@ Set-Content (Join-Path $stage 'UnifiedVanillaSave.json') 'fixture manifest'
     if (!(Test-Path (Join-Path $installed 'UnifiedVanillaSave.dll'))) { throw 'Installation missing' }
     if ((Get-Content (Join-Path $userRoot 'save-marker')) -ne 'preserve progress') { throw 'Source save changed' }
     $config = Get-Content $configPath -Raw | ConvertFrom-Json
-    if ($config.BackupDirectory -ne $backup -or !$config.PathMethodIlSha256.GetProfileScopedPath) { throw 'Config migration wrong' }
+    if ($config.BackupDirectory -ne $backup -or !$config.PathMethodIlSha256.GetAccountDir) { throw 'Config migration wrong' }
     if (!(Test-Path (Join-Path $backup 'receipt.json'))) { throw 'First backup missing' }
     Write-Host 'PASS setup migrates config, preserves saves/backup destination and installs'
     & $setup -PathsFile $pathsFile

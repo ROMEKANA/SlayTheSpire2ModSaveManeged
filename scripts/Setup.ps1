@@ -70,7 +70,7 @@ try {
     }
     Write-Host "Setup completed. Paths: $PathsFile"
     Write-Host "Config: $config"
-    Write-Host 'Restart STS2 and verify PROFILE_ROUTE and vanilla/modded progress sharing.'
+    Write-Host 'Restart STS2 and verify RELATIVE_ROUTE and vanilla/modded progress sharing.'
 } finally {
     Pop-Location
     $guard.Dispose()

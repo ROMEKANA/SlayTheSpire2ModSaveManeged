@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -17,11 +16,9 @@ public sealed record AuditConfig(
 public static class Compatibility
 {
     public const string TargetType = "MegaCrit.Sts2.Core.Saves.UserDataPathProvider";
-    public const string TargetMethod = "GetProfileDir";
 
-    public const string PlatformTypeName = "MegaCrit.Sts2.Core.Platform.PlatformType";
     public static IReadOnlyList<string> PathMethodNames { get; } =
-        Array.AsReadOnly(new[] { "GetProfileScopedPath", "GetProfileScopedBasePath" });
+        Array.AsReadOnly(new[] { "GetAccountDir", "GetProfileDir" });
 
     public static MethodInfo[] ResolvePaths(Assembly game, AuditConfig config)
     {
@@ -30,30 +27,24 @@ public static class Compatibility
         if (!HashFile(game.Location).Equals(config.GameAssemblySha256, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("sts2.dll changed. Re-audit before enabling this mod.");
         if (config.PathMethodIlSha256 is null || PathMethodNames.Any(n => !config.PathMethodIlSha256.ContainsKey(n)))
-            throw new InvalidOperationException("Legacy wrapper audit cannot enable final path patches. Run SaveAudit path-config for this audited DLL first.");
+            throw new InvalidOperationException("Older wrapper/absolute-path audits cannot enable relative selector patches. Run scripts/Setup.ps1 to regenerate config for the audited DLL.");
         var type = game.GetType(TargetType, throwOnError: true)!;
-        var platform = game.GetType(PlatformTypeName, throwOnError: true)!;
-        if (!platform.IsEnum) throw new InvalidOperationException("PlatformType is no longer an enum.");
-        var optionalPlatform = typeof(Nullable<>).MakeGenericType(platform);
         return PathMethodNames.Select(name =>
         {
-            Type[] arguments = name == "GetProfileScopedPath"
-                ? [typeof(int), typeof(string), optionalPlatform, typeof(ulong?)]
-                : [typeof(int), optionalPlatform, typeof(ulong?)];
+            Type[] arguments = name == "GetAccountDir" ? [typeof(bool?)] : [typeof(int), typeof(bool?)];
             var method = type.GetMethod(name,
                 BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly,
                 binder: null, types: arguments, modifiers: null);
             if (method is null || method.ReturnType != typeof(string) || method.IsGenericMethod)
-                throw new MissingMethodException("Audited final path builder signature changed: " + name);
+                throw new MissingMethodException("Audited relative selector signature changed: " + name);
             var il = method.GetMethodBody()?.GetILAsByteArray()
                 ?? throw new InvalidOperationException("Target has no readable IL: " + name);
             if (!Hash(il).Equals(config.PathMethodIlSha256[name], StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Final path builder IL differs from local audit: " + name);
+                throw new InvalidOperationException("Relative selector IL differs from local audit: " + name);
             return method;
         }).ToArray(); // Validate BOTH before applying ANY patch.
     }
 
-    public static string VanillaProfile(int id) => "profile" + id.ToString(CultureInfo.InvariantCulture);
     public static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));
     public static string HashFile(string path)
     {

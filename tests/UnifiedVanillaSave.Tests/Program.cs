@@ -1,19 +1,7 @@
-using System.Globalization;
 using UnifiedVanillaSave.Core;
 
 var tests = new (string Name, Action Run)[]
 {
-    ("profile path uses invariant vanilla format", () =>
-    {
-        var previous = CultureInfo.CurrentCulture;
-        try
-        {
-            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("ar-SA");
-            Equal("profile0", Compatibility.VanillaProfile(0));
-            Equal("profile2147483647", Compatibility.VanillaProfile(int.MaxValue));
-        }
-        finally { CultureInfo.CurrentCulture = previous; }
-    }),
     ("first backup preserves both trees and never synchronizes them", () => WithTree((source, backup) =>
     {
         FirstBackup.Ensure(source, backup);
@@ -57,7 +45,7 @@ var tests = new (string Name, Action Run)[]
     ("unconfirmed audit rejected", () =>
         Throws<InvalidOperationException>(() => Compatibility.ResolvePaths(typeof(Compatibility).Assembly,
             new AuditConfig("", "", "", "", "", false)))),
-    ("both final path builders are validated before patching; legacy wrapper audit rejected", () =>
+    ("both relative selectors are validated before patching; old audits rejected", () =>
     {
         var game = typeof(MegaCrit.Sts2.Core.Saves.UserDataPathProvider).Assembly;
         var hashes = SaveAudit.PathMethodAudit.Read(game.Location);
@@ -65,37 +53,16 @@ var tests = new (string Name, Action Run)[]
         var methods = Compatibility.ResolvePaths(game, config);
         if (methods.Length != 2 || !methods.Select(m => m.Name).SequenceEqual(Compatibility.PathMethodNames)) throw new Exception("Wrong targets");
         Throws<InvalidOperationException>(() => Compatibility.ResolvePaths(game, config with { PathMethodIlSha256 = null }));
+        Throws<InvalidOperationException>(() => Compatibility.ResolvePaths(game, config with {
+            PathMethodIlSha256 = new() { ["GetProfileScopedPath"] = "old", ["GetProfileScopedBasePath"] = "old" }
+        }));
         foreach (var name in Compatibility.PathMethodNames)
         {
             var invalid = new Dictionary<string, string>(hashes) { [name] = "bad" };
             Throws<InvalidOperationException>(() => Compatibility.ResolvePaths(game, config with { PathMethodIlSha256 = invalid }));
         }
     }),
-    ("final paths retain account, platform, profile and data type for all nullable mod-state inputs", () =>
-    {
-        foreach (var modded in new[] { false, true })
-        {
-            MegaCrit.Sts2.Core.Saves.UserDataPathProvider.IsRunningModded = modded;
-            foreach (var forced in new bool?[] { null, false, true })
-            foreach (var id in new[] { 0, 1, 2, int.MaxValue })
-            foreach (var platform in new[] { "steam", "default", "editor" })
-            foreach (var suffix in new[] { "", "/saves", "/history/modded/keep", "/settings/" })
-            {
-                var component = MegaCrit.Sts2.Core.Saves.UserDataPathProvider.GetProfileDir(id, forced);
-                var input = $"user://{platform}/18446744073709551615/{component}{suffix}";
-                Equal($"user://{platform}/18446744073709551615/profile{id}{suffix}", ProfilePaths.Vanilla(input, id));
-            }
-            if (MegaCrit.Sts2.Core.Saves.UserDataPathProvider.IsRunningModded != modded) throw new Exception("Global state changed");
-            Equal("modded/profile1", MegaCrit.Sts2.Core.Saves.UserDataPathProvider.GetProfileDir(1, true));
-        }
-    }),
-    ("unexpected layouts are rejected rather than broadly replacing modded strings", () =>
-    {
-        foreach (var path in new[] { "user://steam/1/modded/profile2/saves", "user://steam/not-an-id/modded/profile1/saves",
-            "user://steam/1/modded/modded/profile1/saves", "user://unknown/1/modded/profile1", "C:/modded/profile1", "user://steam/1/modded/profile10" })
-            Throws<InvalidOperationException>(() => ProfilePaths.Vanilla(path, 1));
-    }),
-    ("path-config preserves old config, flags and backup paths while recording exact builder hashes", () => WithTree((source, _) =>
+    ("path-config preserves old config, flags and backup paths while recording exact selector hashes", () => WithTree((source, _) =>
     {
         var game = typeof(MegaCrit.Sts2.Core.Saves.UserDataPathProvider).Assembly.Location;
         var config = new AuditConfig(Compatibility.HashFile(game), "legacy", source, "preserved-backup", "fixture", false);
@@ -119,7 +86,7 @@ var tests = new (string Name, Action Run)[]
         SaveAudit.PathReport.Write(typeof(UnifiedVanillaSave.Tests.PathCallerFixture).Assembly.Location, report);
         var text = report.ToString();
         foreach (var expected in new[] { "PathCallerFixture.ViaOne", "PathCallerFixture.ViaTwo",
-            "GetProfileDir [signature=00010E08]", "ldstr", "modded/", "Direct references from outside" })
+            "GetProfileDir [signature=00010E08]", "ldstr", "modded", "Direct references from outside" })
             if (!text.Contains(expected, StringComparison.Ordinal)) throw new Exception("Missing report evidence: " + expected);
     }),
     ("path report rejects an assembly without the provider", () =>

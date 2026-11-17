@@ -1,76 +1,56 @@
-# Save routing evidence and the 0.2.0 patch contract
+# Save routing contract for 0.3.0
 
-## Evidence
+## Evidence and the previous failure
 
-The user supplied decompiled `UserDataPathProvider` source from v0.113.1. The game DLL itself is not available in Cloud.
+The user provided the v0.113.1 provider, SaveManager, and Profile/Prefs/Progress/Run/RunHistory manager source exported from assembly SHA256 `62ECBE91093E1FA862DE4329AAC865209DCB297804CAF0F0520D92D8C0B4A9C3`. The game DLL itself is not available in Cloud. Generated game source and raw user logs are not committed.
 
-- `GetProfileDir(int)` is a short wrapper calling `GetProfileDir(int, null)`.
-- The two-argument overload returns `GetAccountDir(forceModState).PathJoin($"profile{profileId}")`.
-- `GetAccountDir(bool?)` chooses an empty string or `modded` using the explicit argument, falling back to `IsRunningModded`.
-- Normal profile paths are completed by two static methods returning string:
-  - `GetProfileScopedPath(int profileId, string dataType, PlatformType? platformOverride = null, ulong? userIdOverride = null)`
-  - `GetProfileScopedBasePath(int profileId, PlatformType? platformOverride = null, ulong? userIdOverride = null)`
-- Both select platform/user via `PlatformUtil` and construct `user://{platform}/{id}/{GetProfileDir(profileId)}`, optionally followed by dataType.
-- `GetAccountScopedBasePath` has no modded branch. Explicit legacy/profile-directory probes are separate methods.
+SaveManager constructs its local backend at `GetAccountScopedBasePath(null)` and may wrap it in the game's CloudSaveStore. This base has no modded component. The actual read/write operations pass relative keys to that backend:
 
-The user's runtime logs identify game 0.113.1 and assembly SHA256 `62ECBE91093E1FA862DE4329AAC865209DCB297804CAF0F0520D92D8C0B4A9C3`. The wrapper patch installed, but both vanilla-to-modded and modded-to-vanilla acceptance tests failed.
+| Data | Path factory | Shared selector |
+| --- | --- | --- |
+| Last selected profile | ProfileSaveManager.GetProfileSavePath(bool?) | GetAccountDir(bool?) |
+| Preferences | PrefsSaveManager.GetPrefsPath(int,bool?) | GetProfileDir(int,bool?) |
+| Progress | ProgressSaveManager.GetProgressPathForProfile(int,bool?) | GetProfileDir(int,bool?) |
+| Current solo/multiplayer run | RunSaveManager.GetRunSavePath(int,string,bool?) | GetProfileDir(int,bool?) |
+| Run history | RunHistorySaveManager.GetHistoryPath(int,bool?) | GetProfileDir(int,bool?) |
+| SaveManager path/deletion/temporary cleanup | GetProfileDir(int) wrapper | GetProfileDir(int,bool?) |
 
-Inlining or direct-overload callers could explain the failure. Neither has been confirmed by runtime/JIT tracing. Patch installation is not evidence of successful routing.
+Normal reads and writes omit forceModState. Explicit overrides exist for probing a particular save namespace. In InitProfileId, the profile.save record determines LastProfileId before the absolute base path is logged. Correcting that later log path in 0.2.0 did not correct the profile.save read or the other relative read/write keys. There is no stored per-manager profile path in the supplied constructors; factories evaluate the current profile ID at use time.
 
-## Call-site evidence after the 0.2.0 failure
+The old single-argument wrapper missed direct calls to the two-argument overload. The 0.2.0 absolute helpers missed the actual manager factories. Neither loader success nor the observed absolute-base correction established successful I/O.
 
-The user's static caller report establishes a coverage gap, independently of the unconfirmed inlining/cache hypotheses:
+## Two routing targets
 
-| Caller | Direct provider dependency |
-| --- | --- |
-| SaveManager.GetProfileScopedPath, DeleteProfile, CleanupTemporaryFiles | GetProfileDir(int) |
-| PrefsSaveManager.GetPrefsPath | GetProfileDir(int, bool?) |
-| ProgressSaveManager.GetProgressPathForProfile | GetProfileDir(int, bool?) |
-| RunSaveManager.GetRunSavePath | GetProfileDir(int, bool?) |
-| RunHistorySaveManager.GetHistoryPath | GetProfileDir(int, bool?) |
-| ProfileSaveManager.GetProfileSavePath | GetAccountDir(bool?) |
-| SaveManager.InitProfileId, migration/archive operations | GetProfileScopedBasePath |
-| Profile UI buttons and a debug replay writer | GetProfileScopedPath |
+Patch exactly these source-confirmed static string methods on UserDataPathProvider:
 
-RunSaveManager.GetRunSavePath itself has signature static string(int, string, bool?); its provider dependency is the two-argument GetProfileDir. The abbreviated table does not define new patch contracts.
+- GetAccountDir(bool? forceModState)
+- GetProfileDir(int profileId, bool? forceModState)
 
-Thus the provider's two final-path helpers do not cover all real save-path construction. The observed base-path correction can coexist with unchanged progression/run/history/preferences paths. Read the SaveManager and manager implementations, nullable argument handling, backing storage and initialization order before choosing replacements. Do not add speculative patches from names alone.
+Prefixes change only a null forceModState argument to false, then run the original method. Explicit false and explicit true are unchanged. Do not write IsRunningModded or patch its accessors. Do not replace save contents, serializer methods, backend objects, Cloud synchronization, or gameplay/network detection.
 
-`scripts/Export-SaveSources.ps1` exports the provider, SaveManager and five manager types from the same DLL into ignored local/save-sources.txt. It reads metadata/source through pinned ILSpyCmd; it does not execute the game or access saves. Generated source is diagnostic input, not material to commit or ship.
+The account selector covers profile.save, which is necessary for matching the selected vanilla slot. The two-argument profile selector covers direct manager calls and the one-argument wrapper. Applying both avoids depending solely on interception of a tiny inner helper. The observed factory contracts make these two common path decisions sufficient for the supplied normal routes; arbitrary unrelated MOD backends are not covered.
 
-## 0.2.0 targets (installed implementation; acceptance failed)
+A read-only postfix logs the first bounded set of default requests and their returned relative paths. Empty account component means profile.save is directly under the account base; profileN means saves/history/run keys use the vanilla profile component. This is still not a file-I/O completion log.
 
-Patch only the two final path builders above with postfixes. Preserve the original platform, user ID, profile and dataType; remove only the account-level `modded/` segment. Do not patch global mod state, models, RNG, achievements or networking. Leave both GetProfileDir overloads, GetAccountDir, explicit forceModState=true probes, account-scoped paths and legacy paths alone.
+## Validation and installation
 
-Patching the two-argument GetProfileDir to always return vanilla would also redirect explicit probes for existing modded data. Patching final normal paths avoids that behavior and the dependency on intercepting the short wrapper.
+Resolve exact static/string/parameter contracts and both IL hashes before installing either patch. Old wrapper/absolute-helper-only hash maps cannot enable these targets. Existing one-command Setup regenerates the selector hashes automatically, retaining first backups, config backups, directories and explicit user settings. Unknown DLLs still require a matching prior audit or the fingerprint paired with the supplied source.
 
-`ProfilePaths.Vanilla` validates `user://{steam|default|editor}/{ulong}/{modded/}profile{matching ID}` boundaries. It does not replace modded inside dataType or match a different profile number. Existing vanilla paths are unchanged. Unexpected layouts throw rather than receiving a guessed rewrite.
+The patch implementation is shared with a separate test executable using NuGet Lib.Harmony 2.4.2. The production project continues to reference game-owned 0Harmony.dll and stages no NuGet Harmony payload. The independent tests use small contract fixtures and a key-value store, not proprietary game code or a substitute production game assembly. They exercise warmed callers, profile selection, all manager path categories, explicit overrides, round trips, global state preservation, late conflicts and owner-scoped cleanup under default and optimized JIT.
 
-Resolve exact static/string/parameter contracts and both IL hashes before installing either patch. Reject legacy configs containing only the wrapper hash. `SaveAudit path-config` records new hashes using metadata only when the DLL matches the existing assembly audit. It preserves audit flags, roots and backup settings and retains the old config as a .bak file.
+These checks do not prove compatibility with the exact bundled Harmony, actual startup ordering, all JIT inlining/cached callers, Steam Cloud, real serializers or multiplayer. Compile against the real assemblies and repeat both vanilla/modded acceptance directions, for all profiles, on the local PC. If the new relative-route logs never appear or acceptance still fails, inspect the actual callers/initialization rather than spoofing global mod state.
 
-## Remaining runtime checks
+## Conflicts and failure handling
 
-1. Verify the installed game version and runtimeconfig match the audited DLL and .NET target.
-2. Confirm both method bodies match the supplied source and relevant profile reads/writes/history/settings reach them. `SaveAudit paths` lists provider IL and direct references; reflection and indirect calls are not exhaustively covered.
-3. Observe PROFILE_ROUTE before/after values and actual vanilla-side file writes. Repeat both acceptance directions with the mod removed/reinstalled between processes.
-4. Check for paths cached before initialization or callers that inline/bypass the final builders. Missing route logs or failed acceptance still require further investigation.
-5. Distinguish active user:// saves from Steam Cloud caches. Do not synchronize them. Preserve both vanilla/modded trees and the first backup.
-
-No real-DLL MOD compilation, game launch, file I/O acceptance or multiplayer test has been performed in Cloud. Fixture/pure-function tests do not establish game compatibility.
-
-## Conflicts
-
-Check other Harmony owners on both final builders, both GetProfileDir overloads, GetAccountDir, and IsRunningModded accessors before/after installation and on each postfix invocation. On partial-install failure, remove only this owner's postfixes on the two targets.
-
-This does not exhaustively detect patches on other classes, direct file writes, non-Harmony detours, later changes that suppress the postfix, or concurrent mutation. Remove previous save unifiers outside mods. A loader may still show Loaded after initializer failure; INACTIVE/errors require exiting the game.
+Check other Harmony owners on GetAccountDir, both GetProfileDir overloads, both old absolute helpers and IsRunningModded accessors before/after install and on each prefix. Remove only this owner's hooks on failure. Rollback errors are logged and require game exit. Other classes, non-Harmony detours and changes suppressing these hooks are not exhaustively detected. Remove previous unifiers outside mods.
 
 ## Manifest and multiplayer
 
-Keep affects_gameplay=false: routing is a local utility and changes neither rules nor wire data. Persistent-data compatibility and the current loader/network interpretation still need real testing. min_game_version=0.113.1 reflects the supplied source, not a guarantee for later versions.
+Keep affects_gameplay=false because the MOD changes only local save-namespace selection, not rules/wire data. Persistence compatibility and the current loader/network interpretation still require real acceptance. min_game_version=0.113.1 describes the reviewed source, not a guarantee for future builds.
 
-Test no mod on either peer, this mod on one peer, both peers, matching gameplay mods, and mismatched gameplay mods. Swap host/client and exercise create/join/reconnect/suspend/reload. Mismatched gameplay-mod acceptance must remain the same as without this utility; do not spoof global mod state to bypass checks.
+Test neither/one/both peers with the utility and matching/mismatched gameplay mods. Swap host/client and exercise join/reconnect/suspend/reload. Do not bypass original gameplay-mod mismatch checks. The MOD invokes no extra Cloud synchronization or copy/migration process; existing game storage behavior continues with the selected relative keys.
 
 ## References
 
-- [SLS2Mods e78c2e2](https://github.com/luojiesi/SLS2Mods/tree/e78c2e29efcddf60ce9fe30529312f7261102450): patches GetProfileDir and both IsRunningModded accessors. No explicit license was found; it was investigated, not copied. Global state spoofing was rejected.
-- [Modding-Tutorial 99905ed](https://github.com/fresh-milkshake/Modding-Tutorial/tree/99905eda3b026e0baffc93a894038b178fd493ee): docs/03 describes .NET 9, initializer and manifest rules; docs/05 exact targets and re-audits; docs/08 profile layouts, separate Cloud caches and misleading Loaded status; docs/09 utility-only affects_gameplay=false. Its v0.107.1 scope does not override the user's v0.113.1 source.
+- [SLS2Mods e78c2e2](https://github.com/luojiesi/SLS2Mods/tree/e78c2e29efcddf60ce9fe30529312f7261102450): investigated, not copied. Its global IsRunningModded spoofing is not adopted.
+- [Modding-Tutorial 99905ed](https://github.com/fresh-milkshake/Modding-Tutorial/tree/99905eda3b026e0baffc93a894038b178fd493ee): .NET 9, standard initializer, manifest conventions, exact patch contracts, Cloud-cache distinction and misleading Loaded status. Its v0.107.1 scope does not override the supplied v0.113.1 source.

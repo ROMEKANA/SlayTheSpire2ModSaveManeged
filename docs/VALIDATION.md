@@ -101,3 +101,20 @@ Added Export-SaveSources.ps1 to collect the seven relevant implementations using
 
 
 Linux/PowerShell 7.5.2 checks for the source exporter passed: script syntax, a real pinned ILSpyCmd export against the test fixture DLL via the three-line paths file, previous-report preservation, and missing-type failure without replacing a valid report. Fixture DLL/save/config markers and installation state were unchanged. This is not a decompilation of the actual game DLL or a functional patch test.
+
+
+## 0.3.0: route the shared relative selectors
+
+The newly supplied seven-type source report has the same reviewed v0.113.1 assembly fingerprint. It establishes that SaveManager creates an account-root backend, while the five managers supply relative keys. ProfileSaveManager.LoadProfile reads profile.save before InitProfileId logs the absolute base. The 0.2.0 absolute-path correction therefore did not cover actual account/profile file keys.
+
+The implementation now patches only GetAccountDir(bool?) and GetProfileDir(int,bool?). It changes null forceModState arguments to false and runs the original body; explicit true/false and IsRunningModded are unchanged. Old absolute-helper audits are rejected and Setup automatically replaces their hash map. Source files supplied by the user are not committed.
+
+Verification performed in Cloud on Linux/.NET 9:
+
+- Core/policy/metadata/backup tests: 16/16 passed; obsolete absolute-string-rewrite tests were removed with that implementation.
+- Real Lib.Harmony 2.4.2 checks sharing the production patch code: 8/8 passed under default JIT and 8/8 with tiered compilation disabled. The model warms factories before patching, reads vanilla last-profile state, exercises all relative key categories, explicit overrides, a vanilla/modded round trip, preservation of old modded keys/global state, late conflicts and owner-scoped cleanup.
+- Core/SaveAudit builds completed with zero warnings/errors.
+- The PowerShell setup fixture suite passed with the new selector hash map; setup command and three-line path format are unchanged.
+- CI is configured to run the independent suites on Linux and Windows. Do not infer Windows results until the corresponding run completes.
+
+The test-only NuGet Harmony does not replace the game-owned assembly in production. The entire MOD has not been compiled here against the actual game DLL, and real startup/I/O/Steam Cloud/multiplayer acceptance remains unverified. These are regression tests for the supplied contracts, not a report of game success.

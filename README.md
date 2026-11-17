@@ -2,11 +2,11 @@
 
 Slay the Spire 2のMODあり・なしでバニラ側のプロフィール保存先を使用する、独立したC# MODです。標準ローダーとゲーム同梱Harmonyを使い、BaseLib/RitsuLibには依存しません。セーブの移行・双方向同期は行わず、初回バックアップだけを作成します。
 
-0.2.0では `GetProfileScopedPath` と `GetProfileScopedBasePath` の完成した戻り値から、アカウント直下の `modded/` 成分だけを除去します。グローバルMOD判定と明示的な旧保存先の照会は変更しません。`affects_gameplay:false` はローカルutilityとして採用していますが、マルチ互換性は未確認です。
+0.3.0では通常の保存で使われる共通の相対パス選択処理 `GetAccountDir(bool?)` と `GetProfileDir(int, bool?)` の2つを対象にします。未指定のMOD状態引数だけをfalseへ補正し、元の処理をそのまま実行します。グローバルMOD判定と明示的な旧保存先の照会は変更しません。`affects_gameplay:false` はローカルutilityとして採用していますが、マルチ互換性は未確認です。
 
 **独立テストの成功と実機での進行共有成功は別です。** 実ゲームDLLでのビルド・起動・MODあり/なしの進行共有はローカルPCで確認します。[調査とパッチ契約](docs/RESEARCH.md)、[検証記録](docs/VALIDATION.md)も参照してください。
 
-**現在の実機報告:** インストール手順は分かりやすかったとの確認を得ていますが、読み込み時にエラーがなくてもセーブ統合は成功していません。機能の不具合は未解決です。今後も使うインストール方式は [他のMODにも再利用できる開発向けガイド](docs/MOD_INSTALLATION_PLAYBOOK.md) に記録しています。
+**実機確認状況:** 0.2.0ではパッチ対象外の保存経路が残り、統合に失敗しました。0.3.0は提供された各保存マネージャーの実装に基づく修正版です。独立した保存モデルと実Harmonyによる検証は行っていますが、ゲーム本体での統合成功は未確認です。今後も使うインストール方式は [他のMODにも再利用できる開発向けガイド](docs/MOD_INSTALLATION_PLAYBOOK.md) に記録しています。
 
 ## Windows: 1コマンドのセットアップ
 
@@ -70,16 +70,17 @@ notepad .\local\paths.txt
 
 ## ログと実機確認
 
-セットアップ後、ゲームを起動してMODのバージョン0.2.0を確認します。
+セットアップ後、ゲームを起動してMODのバージョン0.3.0を確認します。
 
 既定の場所の最新ログを表示する。
 ```powershell
 Get-Content (Join-Path $env:LOCALAPPDATA 'UnifiedVanillaSave\UnifiedVanillaSave.log') -Tail 80
 ```
 
-`PATCH_INSTALLED` はパッチ適用、`PROFILE_ROUTE` はビルダーの戻り値の観測です。例:
+`PATCH_INSTALLED` はパッチ適用、`RELATIVE_ROUTE` は通常の相対パス選択がバニラ向けになったことの観測です。例:
 ```text
-original='user://steam/123/modded/profile1/saves'; vanilla='user://steam/123/profile1/saves'
+RELATIVE_ROUTE: GetAccountDir; requested=default; effective=vanilla; relative=''
+RELATIVE_ROUTE: GetProfileDir; requested=default; effective=vanilla; relative='profile1'
 ```
 
 Loaded表示・これらのログだけで保存完了とは判断しません。INACTIVE/例外/競合ownerが出たらゲームを終了します。最初は保全済みのデータで以下を確認してください。
@@ -94,7 +95,7 @@ Loaded表示・これらのログだけで保存完了とは判断しません�
 
 ## 開発・診断用コマンド
 
-現在の呼び出し元レポートでは、進行・ラン・履歴・設定が0.2.0のパッチ対象を経由せず、別のパス生成処理を直接使っています。次のコマンドは調査用で、MODやセーブを変更しません。
+提供された実装では、進行・ラン・履歴・設定・profile選択の読み書きが共通の相対パス選択処理を使うことを確認しています。0.3.0はこの2箇所へ対象を変更しました。次のコマンドは調査用で、MODやセーブを変更しません。
 
 3行ファイルのゲームDLLから、保存関連7型のソースを一括取得する。
 ```powershell
@@ -118,6 +119,8 @@ bash scripts/test.sh
 ```powershell
 .\scripts\Build.ps1 -GameDataDir 'C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64'
 ```
+
+開発用のHarmony結合テストに限りNuGetのLib.Harmony 2.4.2を使用します。本番MODは従来どおりゲーム同梱Harmonyを参照し、NuGetのHarmony DLLはインストールしません。結合テストも実ゲームの受け入れ試験とは別です。
 
 `.csproj` は `GameDir`、`GameDataDir` または `GameAssemblyPath`/`HarmonyAssemblyPath`/`GodotAssemblyPath` を指定できます。参照はPrivate=false。成果物は `artifacts/mods/UnifiedVanillaSave/` のMOD DLLとmanifestの2ファイルだけです。ルート直下のdotnet build/publishではなく対象プロジェクトかスクリプトを指定します。ゲームのruntimeconfigが.NET 9以外になったらSDK/TFMも見直します。
 

@@ -25,6 +25,8 @@ try {
     Write-Host "Using SDK: $sdkVersion"
     dotnet run --project tests/UnifiedVanillaSave.Tests -c Release
     if ($LASTEXITCODE -ne 0) { throw 'Independent tests failed' }
+    dotnet run --project tests/UnifiedVanillaSave.HarmonyTests -c Release
+    if ($LASTEXITCODE -ne 0) { throw 'Independent Harmony checks failed' }
     dotnet run --project tools/SaveAudit -c Release -- inspect $GameAssemblyPath
     if ($LASTEXITCODE -ne 0) { throw 'Metadata inspection failed' }
     dotnet build src/UnifiedVanillaSave -c Release "-p:GameAssemblyPath=$GameAssemblyPath" "-p:HarmonyAssemblyPath=$HarmonyAssemblyPath" "-p:GodotAssemblyPath=$GodotAssemblyPath"

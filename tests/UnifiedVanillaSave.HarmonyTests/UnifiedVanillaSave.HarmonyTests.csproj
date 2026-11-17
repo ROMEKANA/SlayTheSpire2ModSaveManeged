@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/UnifiedVanillaSave.Core/UnifiedVanillaSave.Core.csproj" />
+    <ProjectReference Include="../../tools/SaveAudit/SaveAudit.csproj" />
+    <PackageReference Include="Lib.Harmony" Version="2.4.2" />
+    <Compile Include="../../src/UnifiedVanillaSave/SaveRoutingPatches.cs" Link="SaveRoutingPatches.cs" />
+    <Compile Include="../UnifiedVanillaSave.Tests/GameFixture.cs" Link="GameFixture.cs" />
+  </ItemGroup>
+</Project>

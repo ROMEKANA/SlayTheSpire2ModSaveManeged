@@ -15,7 +15,6 @@ public static class PathMethodAudit
         using var pe = new PEReader(stream);
         var md = pe.GetMetadataReader();
         var decoder = new TypeNames();
-        var optionalPlatform = "System.Nullable`1<" + Compatibility.PlatformTypeName + ">";
         var hashes = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var th in md.TypeDefinitions)
         {
@@ -27,19 +26,19 @@ public static class PathMethodAudit
                 var name = md.GetString(method.Name);
                 if (!Compatibility.PathMethodNames.Contains(name)) continue;
                 var signature = method.DecodeSignature(decoder, (object?)null);
-                string[] expected = name == "GetProfileScopedPath"
-                    ? ["System.Int32", "System.String", optionalPlatform, "System.Nullable`1<System.UInt64>"]
-                    : ["System.Int32", optionalPlatform, "System.Nullable`1<System.UInt64>"];
+                string[] expected = name == "GetAccountDir"
+                    ? ["System.Nullable`1<System.Boolean>"]
+                    : ["System.Int32", "System.Nullable`1<System.Boolean>"];
                 if ((method.Attributes & MethodAttributes.Static) == 0 || signature.Header.IsInstance ||
                     signature.GenericParameterCount != 0 || signature.ReturnType != "System.String" ||
                     !signature.ParameterTypes.SequenceEqual(expected)) continue;
                 if (method.RelativeVirtualAddress == 0) throw new InvalidOperationException("No IL: " + name);
                 if (!hashes.TryAdd(name, Compatibility.Hash(pe.GetMethodBody(method.RelativeVirtualAddress).GetILBytes()!)))
-                    throw new InvalidOperationException("Ambiguous final path builder: " + name);
+                    throw new InvalidOperationException("Ambiguous relative selector: " + name);
             }
         }
         if (Compatibility.PathMethodNames.Any(n => !hashes.ContainsKey(n)))
-            throw new MissingMethodException("Expected exact final path/base builder signatures from the supplied v0.113.1 source. Config unchanged.");
+            throw new MissingMethodException("Expected exact relative selector signatures from the supplied v0.113.1 source. Config unchanged.");
         return hashes;
     }
 
@@ -50,7 +49,7 @@ public static class PathMethodAudit
             throw new InvalidOperationException("sts2.dll differs from existing audit. Do not carry an old audit across game updates.");
         var updated = config with { PathMethodIlSha256 = Read(assemblyPath) };
         var path = Path.GetFullPath(configPath);
-        var backup = path + ".before-final-paths-" + Guid.NewGuid().ToString("N") + ".bak";
+        var backup = path + ".before-relative-paths-" + Guid.NewGuid().ToString("N") + ".bak";
         var temporary = path + ".tmp-" + Guid.NewGuid().ToString("N");
         File.Copy(path, backup, overwrite: false);
         try
