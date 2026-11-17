@@ -54,3 +54,8 @@ Test neither/one/both peers with the utility and matching/mismatched gameplay mo
 
 - [SLS2Mods e78c2e2](https://github.com/luojiesi/SLS2Mods/tree/e78c2e29efcddf60ce9fe30529312f7261102450): investigated, not copied. Its global IsRunningModded spoofing is not adopted.
 - [Modding-Tutorial 99905ed](https://github.com/fresh-milkshake/Modding-Tutorial/tree/99905eda3b026e0baffc93a894038b178fd493ee): .NET 9, standard initializer, manifest conventions, exact patch contracts, Cloud-cache distinction and misleading Loaded status. Its v0.107.1 scope does not override the supplied v0.113.1 source.
+
+
+## Subsequent owner acceptance
+
+After 0.3.0, the owner reported successful operation. This is manual acceptance reported by the owner; the agent did not run the game and no complete multiplayer/Cloud/profile matrix was claimed. Portable game lessons now live in root STS2_MODDING.md, while this file retains project-specific research evidence.

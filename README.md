@@ -6,7 +6,18 @@ Slay the Spire 2のMODあり・なしでバニラ側のプロフィール保存�
 
 **独立テストの成功と実機での進行共有成功は別です。** 実ゲームDLLでのビルド・起動・MODあり/なしの進行共有はローカルPCで確認します。[調査とパッチ契約](docs/RESEARCH.md)、[検証記録](docs/VALIDATION.md)も参照してください。
 
-**実機確認状況:** 0.2.0ではパッチ対象外の保存経路が残り、統合に失敗しました。0.3.0は提供された各保存マネージャーの実装に基づく修正版です。独立した保存モデルと実Harmonyによる検証は行っていますが、ゲーム本体での統合成功は未確認です。今後も使うインストール方式は [他のMODにも再利用できる開発向けガイド](docs/MOD_INSTALLATION_PLAYBOOK.md) に記録しています。
+**実機確認状況:** 0.3.0について、ユーザーから動作成功の報告を受けています。Cloudからゲームを実行した結果ではなく、全profile・マルチ・Cloud同期の全組み合わせを確認したという意味ではありません。
+
+## 他のリポジトリへ持っていくAI向け資料
+
+どちらもリポジトリのルート直下にあります。
+
+| 持っていく先 | コピーするファイル |
+| --- | --- |
+| ゲームを問わない制作・開発 | [AGENTS.md](AGENTS.md) |
+| Slay the Spire 2のMOD制作 | [AGENTS.md](AGENTS.md) と [STS2_MODDING.md](STS2_MODDING.md) |
+
+移動先にも指示ファイルがある場合は、既存ルールを保って統合してください。これらはCodex向けの資料です。localの実パス・生成config・診断レポート・セーブ・ゲームDLL・バックアップを一緒に持っていく必要はありません。
 
 ## Windows: 1コマンドのセットアップ
 
@@ -37,6 +48,72 @@ git pull --ff-only origin main
 現在のソース確認済みゲームDLLのフィンガープリント、または同一DLLに対する既存の確認済み監査記録を使用します。未知のDLLへ更新されていた場合は、configや旧MODを置き換えず停止します。型名/メソッドの意味を推測して有効化したり、監査済みフラグを手でtrueにする手順にはしません。
 
 旧MODは設定ディレクトリの `previous-mod-*` へ保存します。コピーに失敗したら旧MODを戻し、不完全な新ファイルも `failed-install-*` に保全します。ゲームDLLは同梱せず、実ゲームDLLによるビルドが失敗した場合はインストールしません。
+
+## PowerShellの権限エラーへの対処
+
+エラーメッセージによって原因が異なります。信頼できるリポジトリのスクリプトであることを確認してから、該当する対処だけを行ってください。
+
+### 「このシステムではスクリプトの実行が無効」
+
+現在の実行ポリシーを確認する。
+```powershell
+Get-ExecutionPolicy -List
+```
+
+組織のポリシーで制限されていない場合、このPowerShellだけをRemoteSignedにする。
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+```
+
+同じウィンドウでセットアップする。
+```powershell
+.\scripts\Setup.ps1
+```
+
+Processの設定はウィンドウを閉じると戻ります。MachinePolicy/UserPolicyで管理されている場合は、管理者へ確認してください。全体のポリシーをUnrestricted/Bypassへ変更する手順にはしません。
+
+### 「デジタル署名されていません」
+
+取得元と内容を確認したうえで、エラーに出たファイルだけダウンロードブロックを解除する（Setup.ps1の場合）。
+```powershell
+Unblock-File -LiteralPath .\scripts\Setup.ps1
+```
+
+別のスクリプト名が示された場合はそのファイルを対象にします。無関係なファイルまで一括解除しないでください。
+
+### インストール先への「アクセスが拒否されました」
+
+これはProgram Filesへの書き込み権限などの問題です。実行ポリシーの変更だけでは解決しません。ゲームを終了し、local/paths.txtが普段のWindowsユーザーの場所を指すことを確認します。
+
+実際に書き込み拒否が出る場合に限り、同じWindowsアカウントで管理者PowerShellを開く。
+```powershell
+Start-Process powershell -Verb RunAs
+```
+
+新しいウィンドウで元の作業フォルダへ戻り、Setup.ps1を再実行します。別の管理者アカウントへ切り替えるとAPPDATA等が変わるため、既存の3行ファイルを使ってください。フォルダ全体のACLを緩める対処は行いません。
+
+「別のプロセスが使用中」の場合は、ゲームを通常終了して再実行してください。未保存データのあるプロセスを強制終了する手順にはしません。
+
+## 問題の報告はテキストファイルで
+
+スクリプトのエラーや調査に必要な出力は、できるだけファイルに保存して送ってください。ゲームソースが必要な場合は後述のExport-SaveSources.ps1がlocal/save-sources.txtを作成します。
+
+診断ファイル用のフォルダを用意する。
+```powershell
+New-Item -ItemType Directory -Path .\local -Force | Out-Null
+```
+
+スクリプト実行前のポリシー情報を保存する。
+```powershell
+Get-ExecutionPolicy -List | Out-File -Encoding utf8 .\local\execution-policy.txt
+```
+
+3行ファイルが指す設定場所から、最新のMODログを保存する。
+```powershell
+Get-Content (Join-Path ([Environment]::ExpandEnvironmentVariables((Get-Content .\local\paths.txt)[2])) 'UnifiedVanillaSave.log') -Tail 160 | Set-Content -Encoding UTF8 .\local\runtime-log.txt
+```
+
+必要に応じてlocal/execution-policy.txt、local/runtime-log.txt、local/save-sources.txtの指定されたファイルを送ってください。生のレポートはGitへコミットしません。
 
 ## 3つの場所は別ファイルに保存
 

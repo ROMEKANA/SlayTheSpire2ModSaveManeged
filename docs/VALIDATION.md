@@ -84,11 +84,11 @@ The game DLL has not been supplied. MOD compilation against actual assemblies, r
 - Linux/PowerShell fixture checks cover syntax, automatic three-line generation, config migration and backup destination preservation, repeated installation, unknown-DLL rejection, rollback and malformed path files. These use text installation payloads and a test metadata assembly; they are not real-game builds or Windows acceptance tests.
 
 
-## Latest manual feedback: setup accepted, feature still failing
+## Manual feedback before 0.3.0: setup accepted, feature still failing
 
 The owner reported that the automatic installation instructions were clear and should be retained for this and other MOD repositories. They also reported another run with no load-time error but no save unification. Record setup usability as accepted feedback; feature acceptance remains failed. No new runtime cause or successful save routing has been established by this report.
 
-The reusable installation pattern and instruction format are recorded in MOD_INSTALLATION_PLAYBOOK.md and linked from AGENTS.md. This documentation change does not alter or claim to fix runtime behavior. The next investigation requires current-build routing/initialization logs and actual save behavior, not another installation redesign.
+The installation pattern was originally captured in a separate playbook; its universal guidance is now consolidated into root AGENTS.md, with STS2-specific notes in root STS2_MODDING.md. This documentation change does not alter or claim to fix runtime behavior. The next investigation requires current-build routing/initialization logs and actual save behavior, not another installation redesign.
 
 The subsequently supplied 0.2.0 log confirms the final-builder DLL was loaded, both targets passed their audits, and GetProfileScopedBasePath returned a corrected vanilla path for profile1. It contains no GetProfileScopedPath routing observation. This narrows the evidence to a corrected base-path return, not actual save reads/writes. Alternate callers, inlining, pre-initialization caches and profile selection remain hypotheses. Raw account IDs and user paths are intentionally omitted from this record.
 
@@ -118,3 +118,12 @@ Verification performed in Cloud on Linux/.NET 9:
 - CI is configured to run the independent suites on Linux and Windows. Do not infer Windows results until the corresponding run completes.
 
 The test-only NuGet Harmony does not replace the game-owned assembly in production. The entire MOD has not been compiled here against the actual game DLL, and real startup/I/O/Steam Cloud/multiplayer acceptance remains unverified. These are regression tests for the supplied contracts, not a report of game success.
+
+
+## Owner-reported 0.3.0 success and portable instruction consolidation
+
+On 2026-11-18 (Asia/Tokyo), the owner reported that the MOD worked after the 0.3.0 update. Record this as user-reported real-game success, not an agent-run game test. The exact coverage of all profiles, multiplayer, Cloud states and future versions was not enumerated. Previous failed attempts remain historical evidence.
+
+Universal automation/research/reporting/permission-troubleshooting guidance is consolidated into root AGENTS.md. Root STS2_MODDING.md holds the game-specific contracts and lessons. The old docs/MOD_INSTALLATION_PLAYBOOK.md was removed to avoid conflicting portable guidance. README now identifies the two transfer files, documents scoped PowerShell permission remedies and gives text-report commands. No runtime or installation implementation changed in this documentation task.
+
+Documentation checks passed: all local Markdown links and code fences, both root transfer files, absence of the old duplicated playbook, and single-command formatting/syntax for all 28 README PowerShell blocks. Permission remedies were parsed, not executed; no Windows execution policy or ACL was changed by the agent.
