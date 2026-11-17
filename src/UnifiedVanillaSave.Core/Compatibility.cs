@@ -11,31 +11,46 @@ public sealed record AuditConfig(
     string UserDataRoot,
     string BackupDirectory,
     string AuditedGameVersion,
-    bool CallersAndVanillaLayoutVerified);
+    bool CallersAndVanillaLayoutVerified,
+    Dictionary<string, string>? PathMethodIlSha256 = null);
 
 public static class Compatibility
 {
     public const string TargetType = "MegaCrit.Sts2.Core.Saves.UserDataPathProvider";
     public const string TargetMethod = "GetProfileDir";
 
-    // Candidate supported by reference source; acceptance still requires a local IL/caller audit.
-    public static MethodInfo Resolve(Assembly game, AuditConfig config)
+    public const string PlatformTypeName = "MegaCrit.Sts2.Core.Platform.PlatformType";
+    public static IReadOnlyList<string> PathMethodNames { get; } =
+        Array.AsReadOnly(new[] { "GetProfileScopedPath", "GetProfileScopedBasePath" });
+
+    public static MethodInfo[] ResolvePaths(Assembly game, AuditConfig config)
     {
         if (!config.CallersAndVanillaLayoutVerified || string.IsNullOrWhiteSpace(config.AuditedGameVersion))
             throw new InvalidOperationException("Local caller/layout audit has not been confirmed.");
         if (!HashFile(game.Location).Equals(config.GameAssemblySha256, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("sts2.dll changed. Re-audit before enabling this mod.");
+        if (config.PathMethodIlSha256 is null || PathMethodNames.Any(n => !config.PathMethodIlSha256.ContainsKey(n)))
+            throw new InvalidOperationException("Legacy wrapper audit cannot enable final path patches. Run SaveAudit path-config for this audited DLL first.");
         var type = game.GetType(TargetType, throwOnError: true)!;
-        var method = type.GetMethod(TargetMethod,
-            BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly,
-            binder: null, types: [typeof(int)], modifiers: null);
-        if (method is null || method.ReturnType != typeof(string) || method.IsGenericMethod)
-            throw new MissingMethodException("Expected audited static string GetProfileDir(int). No patch applied.");
-        var il = method.GetMethodBody()?.GetILAsByteArray()
-            ?? throw new InvalidOperationException("Target has no readable IL.");
-        if (!Hash(il).Equals(config.MethodIlSha256, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Target IL differs from local audit.");
-        return method;
+        var platform = game.GetType(PlatformTypeName, throwOnError: true)!;
+        if (!platform.IsEnum) throw new InvalidOperationException("PlatformType is no longer an enum.");
+        var optionalPlatform = typeof(Nullable<>).MakeGenericType(platform);
+        return PathMethodNames.Select(name =>
+        {
+            Type[] arguments = name == "GetProfileScopedPath"
+                ? [typeof(int), typeof(string), optionalPlatform, typeof(ulong?)]
+                : [typeof(int), optionalPlatform, typeof(ulong?)];
+            var method = type.GetMethod(name,
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly,
+                binder: null, types: arguments, modifiers: null);
+            if (method is null || method.ReturnType != typeof(string) || method.IsGenericMethod)
+                throw new MissingMethodException("Audited final path builder signature changed: " + name);
+            var il = method.GetMethodBody()?.GetILAsByteArray()
+                ?? throw new InvalidOperationException("Target has no readable IL: " + name);
+            if (!Hash(il).Equals(config.PathMethodIlSha256[name], StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Final path builder IL differs from local audit: " + name);
+            return method;
+        }).ToArray(); // Validate BOTH before applying ANY patch.
     }
 
     public static string VanillaProfile(int id) => "profile" + id.ToString(CultureInfo.InvariantCulture);

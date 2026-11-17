@@ -11,7 +11,7 @@ Slay the Spire 2 のMODあり・なしでバニラ側のプロフィール保存
 - `tools/SaveAudit`: ゲームDLLを実行せずメタデータ/ILハッシュを表示するツール、初回バックアップコマンド。
 - `tests/UnifiedVanillaSave.Tests`: 外部テストパッケージ不要の独立したテストランナー。
 
-`GetProfileDir` だけを置換し、`IsRunningModded` などのゲーム全体のMOD判定は変更しません。メソッドの契約が現行DLLと一致することはローカルで監査します。監査前・DLL更新後・バックアップ失敗・既知のHarmony競合時には有効化しません。initializerの失敗後にゲームが続行する可能性があるため、**Loaded表示やパッチ適用成功は、保存先共通化の成功を意味しません。** `PATCH_INSTALLED` はパッチ適用、`PROFILE_ROUTE` は単一引数版の呼び出しを示すだけです。保存先共通化の成功は、実ファイルとMODあり/なしの往復確認で判断してください。
+0.2.0では最終プロフィール用パスを返す `GetProfileScopedPath` と `GetProfileScopedBasePath` の戻り値だけを補正し、`IsRunningModded` などのゲーム全体のMOD判定は変更しません。メソッドの契約が現行DLLと一致することはローカルで監査します。監査前・DLL更新後・バックアップ失敗・既知のHarmony競合時には有効化しません。initializerの失敗後にゲームが続行する可能性があるため、**Loaded表示やパッチ適用成功は、保存先共通化の成功を意味しません。** `PATCH_INSTALLED` はパッチ適用、`PROFILE_ROUTE` は最終パスビルダーの補正前後を示すだけです。保存先共通化の成功は、実ファイルとMODあり/なしの往復確認で判断してください。
 
 検証済みの結果と未実施項目は [クラウド検証記録](docs/VALIDATION.md) に記載しています。
 
@@ -76,7 +76,7 @@ Get-ChildItem -LiteralPath $game -Filter sts2.dll -Recurse -File | Select-Object
 
 ## ローカル監査・初回バックアップ・設定
 
-1. [必須監査項目](docs/RESEARCH.md)に従ってILSpyで対象と呼び出し元を確認します。候補は `static string MegaCrit.Sts2.Core.Saves.UserDataPathProvider.GetProfileDir(int)`。シグネチャの一致だけで使用可能と判断しないでください。
+1. [必須監査項目](docs/RESEARCH.md)に従ってILSpyで対象と呼び出し元を確認します。対象は `MegaCrit.Sts2.Core.Saves.UserDataPathProvider` の `GetProfileScopedPath(int, string, PlatformType?, ulong?)` と `GetProfileScopedBasePath(int, PlatformType?, ulong?)`（いずれもstatic/string戻り値）です。シグネチャの一致だけで使用可能と判断しないでください。
 2. 次の出力と、ゲーム画面のバージョン、監査結果を手元に保存します。SHA256は更新検知用で、ゲームの意味上の互換性を証明しません。
 
 ```powershell
@@ -129,6 +129,39 @@ Get-Content (Join-Path $env:LOCALAPPDATA 'UnifiedVanillaSave\UnifiedVanillaSave.
 
 他MODの独自カード等を含むランをバニラ側に保存すると、そのMODを外したゲームで読めなくなる場合があります。本MODはセーブ形式や独自コンテンツの互換性を変換しません。プロフィール共有が適切なMOD構成で使用してください。
 
+## 0.1.xから0.2.0への更新
+
+ゲーム終了後に実行します。旧 `MethodIlSha256` はラッパーのハッシュであり、新対象には使えません。既存設定と同じDLLであることを確認してから、2つの正確なシグネチャのILハッシュを追加します。ゲームDLLのハッシュが以前の設定と異なる場合は停止し、更新版の再監査が必要です。
+
+```powershell
+.\scripts\Build.ps1 -GameDataDir $data
+$configPath = Join-Path $env:LOCALAPPDATA 'UnifiedVanillaSave\config.json'
+dotnet run --project .\tools\SaveAudit -c Release -- path-config (Join-Path $data 'sts2.dll') $configPath
+if ($LASTEXITCODE -ne 0) { throw 'Path audit update failed' }
+```
+
+`path-config` は旧設定を `.bak` として保全し、`PathMethodIlSha256` に `GetProfileScopedPath` と `GetProfileScopedBasePath` を追加します。保存ルート・初回バックアップ先・バージョン・監査済みフラグは保持します。監査済みフラグがfalseならtrueに変えません。セーブの移動・同期・削除はしません。`UVS_CONFIG` を使っている場合はそのファイルを指定してください。
+
+旧MODフォルダは `mods` の外へ移し、新成果物をインストールします。
+
+```powershell
+$oldMod = Join-Path $game 'mods/UnifiedVanillaSave'
+if (Test-Path -LiteralPath $oldMod) {
+    $previous = Join-Path $env:LOCALAPPDATA ('UnifiedVanillaSave/previous-mod-' + [guid]::NewGuid().ToString('N'))
+    Move-Item -LiteralPath $oldMod -Destination $previous
+}
+.\scripts\Install.ps1 -GameDir $game -GameDataDir $data
+```
+
+再起動後、MOD一覧のバージョン0.2.0と今回のログを確認します。次のような補正が期待されます（ID/番号は実環境によります）。
+
+```text
+PROFILE_ROUTE: GetProfileScopedPath; original='user://steam/123/modded/profile1/saves'; vanilla='user://steam/123/profile1/saves'
+PROFILE_ROUTE: GetProfileScopedBasePath; original='user://steam/123/modded/profile1'; vanilla='user://steam/123/profile1'
+```
+
+これは補正後の戻り値の観測で、保存完了の証明ではありません。MODなし→ありの既存進行読み込み、あり→なしの変更反映を再確認してください。明示的な `GetProfileDir(id, true)` の旧保存先照会やアカウント共通パスは補正しません。
+
 ## 無効化・復元
 
 ゲームとCloud同期を停止し、`<game>\mods\UnifiedVanillaSave` をmodsの外へ移動すれば無効化できます。セーブの逆移行は行いません。以後、他のゲームプレイMODがある場合は通常のmodded側に戻る可能性があります。
@@ -148,7 +181,7 @@ Cloudキャッシュ `<Steam>\userdata\<AccountId>\2868840\remote` は本MODの�
 
 ## 初期化するが保存先が共通にならない場合
 
-現実装の対象は `GetProfileDir(int)` だけです。別オーバーロードの直接呼び出し、インライン化、初期化前にキャッシュされた保存先、別の保存先処理があると、パッチ適用だけでは共通化できません。グローバルMOD判定をfalseにして回避せず、実DLLの処理を確認します。
+0.1.xは短い `GetProfileDir(int)` ラッパーだけを対象にしており、実機で統合されない報告がありました。0.2.0では提示されたv0.113.1のソースに基づき、最終パスビルダー2つに対象を変更しています。初期化前にキャッシュされた保存先、ビルダー自体のインライン化、別の保存先処理がある場合は引き続き実機確認が必要です。グローバルMOD判定をfalseにして回避せず、実DLLの処理を確認します。
 
 まずゲームを終了し、バニラ側・modded側を両方保全してください。既存バックアップからの自動復元や、どちらかのセーブの削除・同期は行いません。
 
@@ -176,4 +209,4 @@ dotnet tool install --tool-path .\local\ilspy9 ilspycmd --version 9.1.0.7988 --a
 
 `local/UserDataPathProvider.cs` は上記コマンドによる出力です。ゲームやMODは自動作成しません。ILSpyCmd固定版はLinuxの.NET 9環境で導入・起動・fixture逆コンパイルを確認しています。インストール済みの場合は `dotnet tool list --tool-path .\local\ilspy9` でバージョンを確認してください。
 
-診断レポートまたは逆コンパイルコードと、今回の起動分のMODログを使って原因を絞ります。0.1.1のログは、ロードしたMODのパス/ハッシュ・ゲームDLLのパス/MVID、`PATCH_INSTALLED`、最初の最大16種類のprofileについて `PROFILE_ROUTE` を記録します。`PROFILE_ROUTE` がない場合は、単一引数版が未呼び出しかパッチが迂回された可能性があります。表示されても、最終保存先や全処理の通過を保証しません。診断のために新しい進行を保存する必要はありません。
+診断レポートまたは逆コンパイルコードと、今回の起動分のMODログを使って原因を絞ります。0.2.0のログは、ロードしたMODのパス/ハッシュ・ゲームDLLのパス/MVID、`PATCH_INSTALLED`、両メソッド合わせて最初の最大32種類のprofile/メソッドの組について `PROFILE_ROUTE` を記録します。`PROFILE_ROUTE` がない場合は、最終パスビルダーが未呼び出しかパッチが迂回された可能性があります。表示されても、最終保存先や全処理の通過を保証しません。診断のために新しい進行を保存する必要はありません。

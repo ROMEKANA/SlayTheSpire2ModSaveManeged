@@ -63,3 +63,14 @@ Windowsでユーザーが .NET SDK 9.0.321 にて独立テスト11/11通過と�
 - 最新ILSpyCmdのツール設定形式が.NET 9 SDKで拒否された報告に対し、固定版9.1.0.7988 + --allow-roll-forwardでのインストール、起動、fixture逆コンパイルをLinux / .NET 9で確認。
 
 この変更は原因調査用。実ゲームDLL参照での0.1.1本体ビルド、実機の呼び出し観測、保存先統合成功は未確認。実動作を直したという検証結果はない。
+
+## 0.2.0 correction based on supplied source
+
+The user provided the v0.113.1 provider source and runtime logs. The single-argument method is a short wrapper; two final builders complete normal profile paths.
+
+- Replace the wrapper prefix with postfixes on GetProfileScopedPath and GetProfileScopedBasePath. Remove only the account-level modded component from the completed result.
+- Keep explicit GetProfileDir(id,true) probes, global mod state, platform/user/profile/dataType unchanged.
+- Validate both targets before patching. Reject wrapper-only audits. path-config retains the prior config and records new IL hashes only for the same audited DLL.
+- Linux/.NET 9 independent tests: 16/16 passed. Core/SaveAudit builds: zero warnings/errors. Cases cover nullable state inputs, existing vanilla paths, three platforms, multiple profiles, ulong max ID, modded inside suffixes, unexpected layouts, either target's IL mismatch, and preservation of config/audit flags/backup settings.
+
+The game DLL has not been supplied. MOD compilation against actual assemblies, real Harmony routing, initializer order/caches/inlining, and successful bidirectional progress sharing remain unverified. Passing independent tests is not runtime acceptance.

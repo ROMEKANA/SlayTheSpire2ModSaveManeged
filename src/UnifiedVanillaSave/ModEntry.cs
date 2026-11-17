@@ -11,15 +11,15 @@ public static class ModEntry
 {
     private const string Owner = "ROMEKANA.UnifiedVanillaSave";
     private static readonly object Gate = new();
-    private static MethodInfo? target;
+    private static MethodInfo[]? targets;
     private static string? logPath;
-    private static readonly HashSet<int> LoggedProfiles = [];
+    private static readonly HashSet<string> LoggedProfiles = [];
 
     public static void Initialize()
     {
         lock (Gate)
         {
-            if (target is not null) return;
+            if (targets is not null) return;
             var home = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UnifiedVanillaSave");
             Directory.CreateDirectory(home);
             logPath = Path.Combine(home, "UnifiedVanillaSave.log");
@@ -31,56 +31,58 @@ public static class ModEntry
                 var game = typeof(ModInitializerAttribute).Assembly;
                 Log($"Loaded mod: {typeof(ModEntry).Assembly.Location}; SHA256={Compatibility.HashFile(typeof(ModEntry).Assembly.Location)}");
                 Log($"Game assembly: {game.Location}; MVID={game.ManifestModule.ModuleVersionId}");
-                var method = Compatibility.Resolve(game, config);
-                Log($"Audit accepted: game={config.AuditedGameVersion}, sha256={config.GameAssemblySha256}, target={method}");
+                var methods = Compatibility.ResolvePaths(game, config);
+                Log($"Audit accepted: game={config.AuditedGameVersion}, sha256={config.GameAssemblySha256}");
+                foreach (var method in methods) Log("Audited final path builder: " + method);
                 var actualRoot = FirstBackup.Canonical(ProjectSettings.GlobalizePath("user://"));
                 if (!string.Equals(actualRoot, FirstBackup.Canonical(config.UserDataRoot),
                     OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
                     throw new InvalidOperationException("Configured user-data root differs from Godot user://.");
-                CheckConflicts(method);
+                CheckConflicts(methods);
                 FirstBackup.Ensure(actualRoot, config.BackupDirectory);
                 Log("First backup verified: " + config.BackupDirectory);
-                target = method;
-                harmony.Patch(method, prefix: new HarmonyMethod(typeof(ModEntry), nameof(ProfilePrefix)) { priority = Priority.First });
-                CheckConflicts(method);
-                Log("PATCH_INSTALLED: only GetProfileDir(int) patched. Actual save routing is NOT verified. Look for PROFILE_ROUTE and inspect saved files.");
+                targets = methods;
+                foreach (var method in methods)
+                    harmony.Patch(method, postfix: new HarmonyMethod(typeof(ModEntry), nameof(PathPostfix)) { priority = Priority.Last });
+                CheckConflicts(methods);
+                Log("PATCH_INSTALLED: final profile path/base builders patched. Global mod state and explicit GetProfileDir probes unchanged. Actual file I/O still requires verification.");
             }
             catch (Exception ex)
             {
-                if (target is not null)
-                    harmony.Unpatch(target, HarmonyPatchType.Prefix, Owner);
-                target = null;
+                if (targets is not null)
+                    foreach (var method in targets) harmony.Unpatch(method, HarmonyPatchType.Postfix, Owner);
+                targets = null;
                 Log("INACTIVE: no save unification. Exit the game before playing. " + ex);
                 throw;
             }
         }
     }
 
-    private static bool ProfilePrefix(int __0, ref string __result)
+    private static void PathPostfix(int __0, MethodBase __originalMethod, ref string __result)
     {
-        // A later mod may have patched the same target. Never silently continue with mixed destinations.
-        CheckConflicts(target ?? throw new InvalidOperationException("Patch not initialized."));
-        __result = Compatibility.VanillaProfile(__0);
+        CheckConflicts(targets ?? throw new InvalidOperationException("Patches not initialized."));
+        var original = __result;
+        __result = ProfilePaths.Vanilla(original, __0);
         lock (Gate)
         {
-            if (LoggedProfiles.Count < 16 && LoggedProfiles.Add(__0))
-                Log($"PROFILE_ROUTE: GetProfileDir(int) invoked; profileId={__0}; relative result='{__result}'. This does not confirm the final read/write path.");
+            var key = __originalMethod.Name + ":" + __0;
+            if (LoggedProfiles.Count < 32 && LoggedProfiles.Add(key))
+                Log($"PROFILE_ROUTE: {__originalMethod.Name}; original='{original}'; vanilla='{__result}'. Final file I/O is not observed by this log.");
         }
-        return false;
     }
 
-    private static void CheckConflicts(MethodBase method)
+    private static void CheckConflicts(MethodInfo[] methods)
     {
-        var type = method.DeclaringType!;
+        var type = methods[0].DeclaringType!;
         var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
-        // Detect legacy unifiers that patch global state, without patching that state ourselves.
-        var related = new MethodBase?[] { method,
-            type.GetMethod("get_IsRunningModded", flags), type.GetMethod("set_IsRunningModded", flags) };
-        var foreign = related.Where(m => m is not null)
-            .SelectMany(m => Harmony.GetPatchInfo(m!)?.Owners ?? Enumerable.Empty<string>())
+        // These methods can affect final path construction; detect other owners without patching them.
+        var related = type.GetMethods(flags).Where(m =>
+            Compatibility.PathMethodNames.Contains(m.Name) || m.Name is
+                "GetProfileDir" or "GetAccountDir" or "get_IsRunningModded" or "set_IsRunningModded");
+        var foreign = related.SelectMany(m => Harmony.GetPatchInfo(m)?.Owners ?? Enumerable.Empty<string>())
             .Where(o => o != Owner).Distinct().ToArray();
         if (foreign.Length == 0) return;
-        var message = "Conflicting Harmony owners on GetProfileDir: " + string.Join(", ", foreign);
+        var message = "Conflicting Harmony owners on save path provider: " + string.Join(", ", foreign);
         Log(message);
         throw new InvalidOperationException(message);
     }

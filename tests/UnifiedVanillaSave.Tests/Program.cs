@@ -55,30 +55,77 @@ var tests = new (string Name, Action Run)[]
         if (Directory.Exists(backup)) throw new Exception("Partial backup was published");
     })),
     ("unconfirmed audit rejected", () =>
-        Throws<InvalidOperationException>(() => Compatibility.Resolve(typeof(Compatibility).Assembly,
+        Throws<InvalidOperationException>(() => Compatibility.ResolvePaths(typeof(Compatibility).Assembly,
             new AuditConfig("", "", "", "", "", false)))),
-    ("exact method and IL audit accepted on a test fixture only", () =>
+    ("both final path builders are validated before patching; legacy wrapper audit rejected", () =>
     {
         var game = typeof(MegaCrit.Sts2.Core.Saves.UserDataPathProvider).Assembly;
-        var method = typeof(MegaCrit.Sts2.Core.Saves.UserDataPathProvider).GetMethod("GetProfileDir", [typeof(int)])!;
-        var config = new AuditConfig(Compatibility.HashFile(game.Location),
-            Compatibility.Hash(method.GetMethodBody()!.GetILAsByteArray()!), "", "", "fixture", true);
-        if (Compatibility.Resolve(game, config) != method) throw new Exception("Wrong method");
-        Throws<InvalidOperationException>(() => Compatibility.Resolve(game, config with { MethodIlSha256 = "bad" }));
+        var hashes = SaveAudit.PathMethodAudit.Read(game.Location);
+        var config = new AuditConfig(Compatibility.HashFile(game.Location), "unused legacy hash", "", "", "fixture", true, hashes);
+        var methods = Compatibility.ResolvePaths(game, config);
+        if (methods.Length != 2 || !methods.Select(m => m.Name).SequenceEqual(Compatibility.PathMethodNames)) throw new Exception("Wrong targets");
+        Throws<InvalidOperationException>(() => Compatibility.ResolvePaths(game, config with { PathMethodIlSha256 = null }));
+        foreach (var name in Compatibility.PathMethodNames)
+        {
+            var invalid = new Dictionary<string, string>(hashes) { [name] = "bad" };
+            Throws<InvalidOperationException>(() => Compatibility.ResolvePaths(game, config with { PathMethodIlSha256 = invalid }));
+        }
     }),
+    ("final paths retain account, platform, profile and data type for all nullable mod-state inputs", () =>
+    {
+        foreach (var modded in new[] { false, true })
+        {
+            MegaCrit.Sts2.Core.Saves.UserDataPathProvider.IsRunningModded = modded;
+            foreach (var forced in new bool?[] { null, false, true })
+            foreach (var id in new[] { 0, 1, 2, int.MaxValue })
+            foreach (var platform in new[] { "steam", "default", "editor" })
+            foreach (var suffix in new[] { "", "/saves", "/history/modded/keep", "/settings/" })
+            {
+                var component = MegaCrit.Sts2.Core.Saves.UserDataPathProvider.GetProfileDir(id, forced);
+                var input = $"user://{platform}/18446744073709551615/{component}{suffix}";
+                Equal($"user://{platform}/18446744073709551615/profile{id}{suffix}", ProfilePaths.Vanilla(input, id));
+            }
+            if (MegaCrit.Sts2.Core.Saves.UserDataPathProvider.IsRunningModded != modded) throw new Exception("Global state changed");
+            Equal("modded/profile1", MegaCrit.Sts2.Core.Saves.UserDataPathProvider.GetProfileDir(1, true));
+        }
+    }),
+    ("unexpected layouts are rejected rather than broadly replacing modded strings", () =>
+    {
+        foreach (var path in new[] { "user://steam/1/modded/profile2/saves", "user://steam/not-an-id/modded/profile1/saves",
+            "user://steam/1/modded/modded/profile1/saves", "user://unknown/1/modded/profile1", "C:/modded/profile1", "user://steam/1/modded/profile10" })
+            Throws<InvalidOperationException>(() => ProfilePaths.Vanilla(path, 1));
+    }),
+    ("path-config preserves old config, flags and backup paths while recording exact builder hashes", () => WithTree((source, _) =>
+    {
+        var game = typeof(MegaCrit.Sts2.Core.Saves.UserDataPathProvider).Assembly.Location;
+        var config = new AuditConfig(Compatibility.HashFile(game), "legacy", source, "preserved-backup", "fixture", false);
+        var path = Path.Combine(source, "audit-config");
+        var original = System.Text.Json.JsonSerializer.Serialize(config);
+        File.WriteAllText(path, original);
+        var backup = SaveAudit.PathMethodAudit.UpdateConfig(game, path);
+        Equal(original, File.ReadAllText(backup));
+        var updated = Compatibility.ReadConfig(path);
+        if (updated.CallersAndVanillaLayoutVerified || updated.PathMethodIlSha256?.Count != 2) throw new Exception("Config migration wrong");
+        Equal(config.BackupDirectory, updated.BackupDirectory);
+        Equal(config.UserDataRoot, updated.UserDataRoot);
+        File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(config with { GameAssemblySha256 = "different" }));
+        var before = File.ReadAllText(path);
+        Throws<InvalidOperationException>(() => SaveAudit.PathMethodAudit.UpdateConfig(game, path));
+        Equal(before, File.ReadAllText(path));
+    })),
     ("path report resolves both overloads and their direct callers without loading game code", () =>
     {
         using var report = new StringWriter();
         SaveAudit.PathReport.Write(typeof(UnifiedVanillaSave.Tests.PathCallerFixture).Assembly.Location, report);
         var text = report.ToString();
         foreach (var expected in new[] { "PathCallerFixture.ViaOne", "PathCallerFixture.ViaTwo",
-            "GetProfileDir [signature=00010E08]", "ldstr", "test-fixture-", "Direct references from outside" })
+            "GetProfileDir [signature=00010E08]", "ldstr", "modded/", "Direct references from outside" })
             if (!text.Contains(expected, StringComparison.Ordinal)) throw new Exception("Missing report evidence: " + expected);
     }),
     ("path report rejects an assembly without the provider", () =>
         Throws<MissingMemberException>(() => SaveAudit.PathReport.Write(typeof(Compatibility).Assembly.Location, TextWriter.Null))),
     ("assembly change rejected before binding a target", () =>
-        Throws<InvalidOperationException>(() => Compatibility.Resolve(typeof(Compatibility).Assembly,
+        Throws<InvalidOperationException>(() => Compatibility.ResolvePaths(typeof(Compatibility).Assembly,
             new AuditConfig(new string('0', 64), "", "", "", "test", true))))
 };
 var failed = 0;
