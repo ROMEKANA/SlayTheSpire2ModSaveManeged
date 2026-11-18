@@ -147,6 +147,13 @@ Start-Process powershell -Verb RunAs
 
 スクリプトのエラーや調査に必要な出力は、できるだけファイルに保存して送ってください。ゲームソースが必要な場合は後述のExport-SaveSources.ps1がlocal/save-sources.txtを作成します。
 
+Workshop版で初期化エラーが出た場合は、ゲームを終了して起動ログをまとめる。
+```powershell
+.\scripts\Export-StartupLog.ps1
+```
+
+エクスプローラーで選択された `local\startup-report.txt` を添付してください。MODのログ末尾とGodotの関連行を収集します。
+
 診断ファイル用のフォルダを用意する。
 ```powershell
 New-Item -ItemType Directory -Path .\local -Force | Out-Null
