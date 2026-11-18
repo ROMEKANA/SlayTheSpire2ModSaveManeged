@@ -81,6 +81,7 @@ public static class FirstBackup
     private static Dictionary<string, string> Inventory(string root)
     {
         var files = new Dictionary<string, string>(StringComparer.Ordinal);
+        var runtimeLogs = Path.Combine(root, "logs");
         Visit(root);
         return files;
         void Visit(string dir)
@@ -88,6 +89,8 @@ public static class FirstBackup
             RejectLink(dir);
             foreach (var entry in Directory.EnumerateFileSystemEntries(dir))
             {
+                // Godot holds its root-level log open during Workshop initialization.
+                if (string.Equals(entry, runtimeLogs, PathComparison) && Directory.Exists(entry)) continue;
                 RejectLink(entry);
                 if (Directory.Exists(entry)) Visit(entry);
                 else files.Add(Path.GetRelativePath(root, entry), Compatibility.HashFile(entry));

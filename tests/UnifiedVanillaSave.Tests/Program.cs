@@ -12,6 +12,16 @@ var tests = new (string Name, Action Run)[]
         Equal("vanilla", File.ReadAllText(Path.Combine(backup, "files", "profile1", "saves", "progress.save")));
         Equal("modded", File.ReadAllText(Path.Combine(source, "modded", "profile1", "saves", "progress.save")));
     })),
+    ("first backup skips locked root runtime logs but preserves nested logs", () => WithTree((source, backup) =>
+    {
+        var logs = Directory.CreateDirectory(Path.Combine(source, "logs"));
+        var nested = Directory.CreateDirectory(Path.Combine(source, "profile1", "logs"));
+        File.WriteAllText(Path.Combine(nested.FullName, "keep"), "profile data");
+        using var locked = File.Open(Path.Combine(logs.FullName, "godot.log"), FileMode.Create, FileAccess.Write, FileShare.None);
+        FirstBackup.Ensure(source, backup);
+        if (Directory.Exists(Path.Combine(backup, "files", "logs"))) throw new Exception("Runtime logs were backed up");
+        Equal("profile data", File.ReadAllText(Path.Combine(backup, "files", "profile1", "logs", "keep")));
+    })),
     ("damaged backup blocks activation", () => WithTree((source, backup) =>
     {
         FirstBackup.Ensure(source, backup);

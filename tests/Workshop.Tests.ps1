@@ -76,7 +76,7 @@ function Invoke-UvsNative($File, [string[]]$Arguments, $Report, $Directory) {
     $stage = Join-Path $Directory 'artifacts/mods/UnifiedVanillaSave'
     New-Item -ItemType Directory -Path $stage -Force | Out-Null
     Set-Content (Join-Path $stage 'UnifiedVanillaSave.dll') 'fixture DLL'
-    Write-UvsText (Join-Path $stage 'UnifiedVanillaSave.json') '{"id":"UnifiedVanillaSave","version":"0.4.0","has_dll":true,"has_pck":false}'
+    Write-UvsText (Join-Path $stage 'UnifiedVanillaSave.json') '{"id":"UnifiedVanillaSave","version":"0.4.1","has_dll":true,"has_pck":false}'
     Set-Content (Join-Path $stage 'sts2.dll') 'must not ship'
     Set-Content (Join-Path $stage 'config.json') 'must not ship'
     return 'fixture audit/build'
