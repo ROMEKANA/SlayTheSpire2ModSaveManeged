@@ -60,6 +60,9 @@ function Get-UvsPreviewUri($Item, $Report) {
     $scheme = if ($validUri) { $uri.Scheme } else { '(invalid)' }
     $hostName = if ($validUri) { $uri.DnsSafeHost } else { '(invalid)' }
     [IO.File]::AppendAllText($Report, "PREVIEW result=$($Item.result); item=$($Item.publishedfileid); app=$($Item.consumer_app_id); scheme=$scheme; host=$hostName`n")
+    if ($Item.result -eq 9) {
+        throw 'Steam anonymous API returned FileNotFound (9); the item may be private, unavailable, or the ID may be wrong. Visibility was not changed. Supply the current original image once with -PreviewImage; it will be remembered locally for later updates.'
+    }
     if ($Item.result -ne 1 -or "$($Item.publishedfileid)" -ne $UvsItemId -or "$($Item.consumer_app_id)" -ne '2868840' -or !$validUri) {
         throw "Cannot verify existing Workshop preview metadata. Send local/workshop-prepare-report.txt, or supply -PreviewImage with the current original image."
     }

@@ -54,8 +54,12 @@ try {
     Write-UvsText (Join-Path $temp 'mod_id.txt') $UvsItemId
     Write-UvsText (Join-Path $temp 'payload-hashes.json') ($hashes | ConvertTo-Json)
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    if ($PreviewImage) {
-        Copy-Item -LiteralPath $PreviewImage -Destination (Join-Path $temp 'image.png')
+    $rememberedPreview = Join-Path $local 'workshop-preview.png'
+    $selectedPreview = $PreviewImage
+    if (!$selectedPreview -and (Test-Path -LiteralPath $rememberedPreview -PathType Leaf)) { $selectedPreview = $rememberedPreview }
+    if ($selectedPreview) {
+        Write-Host "Using owner-selected preview: $selectedPreview"
+        Copy-Item -LiteralPath $selectedPreview -Destination (Join-Path $temp 'image.png')
     } else {
         # Always fetch the current preview; a stale cache could undo a later web edit.
         try { $response = Invoke-RestMethod -Method Post -Uri 'https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/' -Body @{ itemcount = 1; 'publishedfileids[0]' = $UvsItemId } }
@@ -68,6 +72,15 @@ try {
     $png = $image.Length -ge 8 -and [BitConverter]::ToString($image[0..7]) -eq '89-50-4E-47-0D-0A-1A-0A'
     $jpeg = $image.Length -ge 3 -and [BitConverter]::ToString($image[0..2]) -eq 'FF-D8-FF'
     if ($image.Length -ge 1MB -or !($png -or $jpeg)) { throw 'Preview must be PNG/JPEG smaller than 1 MB. Supply -PreviewImage with the original preview.' }
+    if ($PreviewImage) {
+        # An explicit original image becomes persistent owner input, not an API cache.
+        $rememberedTemp = $rememberedPreview + '.tmp-' + [guid]::NewGuid().ToString('N')
+        try {
+            [IO.File]::WriteAllBytes($rememberedTemp, $image)
+            if (Test-Path -LiteralPath $rememberedPreview) { [IO.File]::Replace($rememberedTemp, $rememberedPreview, ($rememberedPreview + '.previous')) }
+            else { [IO.File]::Move($rememberedTemp, $rememberedPreview) }
+        } finally { if (Test-Path -LiteralPath $rememberedTemp) { Remove-Item -LiteralPath $rememberedTemp } }
+    }
     Assert-UvsWorkspace $temp $UpdateListingText.IsPresent
     New-Item -ItemType Directory -Path (Split-Path $workspace -Parent) -Force | Out-Null
     $previous = $null

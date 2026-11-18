@@ -99,6 +99,17 @@ function Invoke-WebRequest($Uri, $OutFile, [switch]$UseBasicParsing) {
     if ($null -ne $config.title -or $null -ne $config.description -or $null -ne $config.visibility) { throw 'Listing changed by default' }
     if (@(Get-ChildItem (Join-Path $workspace 'content') -File).Count -ne 2) { throw 'Private payload leaked' }
     Write-Host 'PASS preparation preserves listing and stages only DLL plus manifest'
+    if (!(Test-Path (Join-Path $local 'workshop-preview.png'))) { throw 'Explicit original image was not remembered' }
+    & $prepare -PathsFile $paths
+    Assert-UvsWorkspace $workspace $false
+    if ((Get-FileHash (Join-Path $workspace 'image.png')).Hash -ne (Get-FileHash $preview).Hash) { throw 'Remembered preview changed' }
+    $validOriginal = (Get-FileHash (Join-Path $local 'workshop-preview.png')).Hash
+    $invalidPreview = Join-Path $root 'invalid.png'
+    Set-Content $invalidPreview 'not an image'
+    Expect-Failure { & $prepare -PathsFile $paths -PreviewImage $invalidPreview }
+    if ((Get-FileHash (Join-Path $local 'workshop-preview.png')).Hash -ne $validOriginal) { throw 'Invalid preview replaced the original' }
+    Write-Host 'PASS selected original reused without API and invalid replacement rejected'
+
     & $prepare -PathsFile $paths -PreviewImage $preview -UpdateListingText
     Assert-UvsWorkspace $workspace $true
     Expect-Failure { Assert-UvsWorkspace $workspace $false }
@@ -110,6 +121,7 @@ function Invoke-WebRequest($Uri, $OutFile, [switch]$UseBasicParsing) {
     Set-Content (Join-Path $local 'fail-build') 'fail'
     Expect-Failure { & $prepare -PathsFile $paths -PreviewImage $preview }
     Remove-Item (Join-Path $local 'fail-build')
+    Remove-Item (Join-Path $local 'workshop-preview.png')
     Expect-Failure { & $prepare -PathsFile $paths }
     if ((Get-Content (Join-Path $workspace 'payload-hashes.json') -Raw) -ne $before) { throw 'Failed prepare replaced workspace' }
     Set-Content (Join-Path $local 'api-success') 'allow fixture API'
@@ -138,7 +150,7 @@ function Invoke-WebRequest($Uri, $OutFile, [switch]$UseBasicParsing) {
     Expect-Failure { & $publish -PathsFile $paths -PreviewImage $preview -UploaderPath $shell.File }
     Assert-UvsWorkspace $workspace $false
     Write-Host 'PASS prepare-only, fixed existing item upload and retained failure report'
-    Write-Host '7/7 Workshop fixture groups passed; no game build or Steam upload performed'
+    Write-Host '8/8 Workshop fixture groups passed; no game build or Steam upload performed'
 } finally {
     $env:OS = $oldOs
     if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }

@@ -18,7 +18,7 @@ Slay the Spire 2のMODあり・なしでバニラ側のプロフィール保存�
 
 作業場所はこのリポジトリのルートです。既存の `local/paths.txt` を使います。下のスクリプトはビルド・DLL監査・配布用ステージ作成・公式アップローダーの取得と検証・既存項目 **3841494553** の更新まで行います。セーブ、設定、インストール済みMODは変更しません。実行には.NET 9 SDKと、対象項目の所有者でログイン済みのWindows版Steamが必要です。
 
-通常は**掲載済みタイトル・説明文・公開範囲を維持**します。説明文の書き換えは明示指定時だけです。既存の表紙画像を取得して再利用します。旧Steam APIが返す既知のSteam画像ホストのHTTP URLはHTTPSへ変換します。Steamへの問い合わせが失敗した場合は停止し、別画像に自動で置き換えません。
+通常は**掲載済みタイトル・説明文・公開範囲を維持**します。説明文の書き換えは明示指定時だけです。既存の表紙画像を取得して再利用します。旧Steam APIが返す既知のSteam画像ホストのHTTP URLはHTTPSへ変換します。Steamへの問い合わせが失敗した場合は停止し、別画像に自動で置き換えません。匿名APIが `result=9` を返す場合、非公開・取得不能・ID違いなどの可能性があり、公開範囲は変更しません。
 
 アップロードせず、ビルドと配布用ファイルの準備だけ行う。
 ```powershell
@@ -35,10 +35,12 @@ Slay the Spire 2のMODあり・なしでバニラ側のプロフィール保存�
 .\scripts\Publish-Workshop.ps1 -UpdateListingText
 ```
 
-表紙の自動取得に失敗した場合だけ、現在の表紙の元画像を指定して再実行する（下の画像を事前に置く）。
+表紙の自動取得に失敗した場合だけ、現在の表紙の元画像を `local/workshop-preview.png` に一度保存して再実行する。
 ```powershell
 .\scripts\Publish-Workshop.ps1 -PreviewImage .\local\workshop-preview.png
 ```
+
+この画像を置いた後は通常のコマンドでも自動利用します。別の場所の画像を `-PreviewImage` で指定した場合も、検証後に `local/workshop-preview.png` へ保存して記憶します。これは所有者が選んだ表紙の元画像として扱い、匿名APIには問い合わせません。Web上で表紙を変えた場合はこのファイルも更新するか、削除してAPIからの取得へ戻してください。
 
 配布物は `local/workshop/UnifiedVanillaSave/content` の **UnifiedVanillaSave.dll と UnifiedVanillaSave.json の2ファイル**です。CoreのコードはMOD DLLに含まれます。2つ目のDLLやゲームDLL・Harmony・Godot・設定・セーブは配布しません。
 
