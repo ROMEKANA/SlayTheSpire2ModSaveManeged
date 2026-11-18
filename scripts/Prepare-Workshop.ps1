@@ -61,8 +61,8 @@ try {
         try { $response = Invoke-RestMethod -Method Post -Uri 'https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/' -Body @{ itemcount = 1; 'publishedfileids[0]' = $UvsItemId } }
         catch { throw 'Cannot retrieve the current Workshop preview. Retry with -PreviewImage pointing to the current original image. No upload performed.' }
         $item = @($response.response.publishedfiledetails)[0]
-        if ($item.result -ne 1 -or "$($item.publishedfileid)" -ne $UvsItemId -or "$($item.consumer_app_id)" -ne '2868840' -or $item.preview_url -notlike 'https://*') { throw 'Cannot verify existing Workshop preview. Supply -PreviewImage with the current original image.' }
-        Invoke-WebRequest -UseBasicParsing -Uri $item.preview_url -OutFile (Join-Path $temp 'image.png')
+        $previewUri = Get-UvsPreviewUri $item $report
+        Invoke-WebRequest -UseBasicParsing -Uri $previewUri -OutFile (Join-Path $temp 'image.png')
     }
     $image = [IO.File]::ReadAllBytes((Join-Path $temp 'image.png'))
     $png = $image.Length -ge 8 -and [BitConverter]::ToString($image[0..7]) -eq '89-50-4E-47-0D-0A-1A-0A'

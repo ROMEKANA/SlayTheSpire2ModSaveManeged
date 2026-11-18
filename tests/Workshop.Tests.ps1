@@ -32,6 +32,21 @@ exit $Code
     Expect-Failure { Invoke-UvsNative $shell.File ($shell.Prefix + @('-NoProfile', '-File', $child, '-Value', 'failure', '-Code', '7')) $report $root }
     if (!(Get-Content $report -Raw).Contains('EXIT_CODE=7')) { throw 'Lost native failure code' }
     Write-Host 'PASS native streams, UTF-8, argument quoting and nonzero exit'
+    $details = @{ result = 1; publishedfileid = '3841494553'; consumer_app_id = 2868840; preview_url = 'http://images.steamusercontent.com/ugc/example/image.png' }
+    if ((Get-UvsPreviewUri $details $report) -ne 'https://images.steamusercontent.com/ugc/example/image.png') { throw 'Steam HTTP preview was not upgraded' }
+    $details.preview_url = 'http://steamuserimages-a.akamaihd.net/ugc/example/image.png'
+    if ((Get-UvsPreviewUri $details $report) -notlike 'https://*') { throw 'Legacy Steam CDN upgrade failed' }
+    $details.preview_url = 'http://untrusted.invalid/image.png'
+    Expect-Failure { Get-UvsPreviewUri $details $report }
+    $details.preview_url = 'https://images.steamusercontent.com/ugc/example/image.png'
+    $details.consumer_app_id = 1
+    Expect-Failure { Get-UvsPreviewUri $details $report }
+    $details.consumer_app_id = 2868840
+    $details.publishedfileid = '123'
+    Expect-Failure { Get-UvsPreviewUri $details $report }
+    if (!(Get-Content $report -Raw).Contains('PREVIEW result=')) { throw 'Missing preview diagnostics' }
+    Write-Host 'PASS Steam HTTP upgrade, wrong item/app rejection and bounded diagnostics'
+
 
     $fixture = Join-Path $root 'repo'
     $scripts = Join-Path $fixture 'scripts'
@@ -123,7 +138,7 @@ function Invoke-WebRequest($Uri, $OutFile, [switch]$UseBasicParsing) {
     Expect-Failure { & $publish -PathsFile $paths -PreviewImage $preview -UploaderPath $shell.File }
     Assert-UvsWorkspace $workspace $false
     Write-Host 'PASS prepare-only, fixed existing item upload and retained failure report'
-    Write-Host '6/6 Workshop fixture groups passed; no game build or Steam upload performed'
+    Write-Host '7/7 Workshop fixture groups passed; no game build or Steam upload performed'
 } finally {
     $env:OS = $oldOs
     if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }

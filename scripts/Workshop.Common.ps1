@@ -52,3 +52,27 @@ function Assert-UvsWorkspace($Workspace, [bool]$UpdateListingText) {
         if ((Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash -ne $receipt.($file.Name)) { throw 'Payload changed after preparation' }
     }
 }
+function Get-UvsPreviewUri($Item, $Report) {
+    $uri = $null
+    $validUri = [Uri]::TryCreate([string]$Item.preview_url, [UriKind]::Absolute, [ref]$uri)
+    # The public legacy API can return an HTTP Steam CDN URL. Upgrade only known
+    # Steam image hosts, never download over plaintext or bypass item validation.
+    $scheme = if ($validUri) { $uri.Scheme } else { '(invalid)' }
+    $hostName = if ($validUri) { $uri.DnsSafeHost } else { '(invalid)' }
+    [IO.File]::AppendAllText($Report, "PREVIEW result=$($Item.result); item=$($Item.publishedfileid); app=$($Item.consumer_app_id); scheme=$scheme; host=$hostName`n")
+    if ($Item.result -ne 1 -or "$($Item.publishedfileid)" -ne $UvsItemId -or "$($Item.consumer_app_id)" -ne '2868840' -or !$validUri) {
+        throw "Cannot verify existing Workshop preview metadata. Send local/workshop-prepare-report.txt, or supply -PreviewImage with the current original image."
+    }
+    if ($uri.Scheme -eq 'http') {
+        $steamHost = $hostName.EndsWith('.steamusercontent.com', [StringComparison]::OrdinalIgnoreCase) -or
+            $hostName.EndsWith('.steamstatic.com', [StringComparison]::OrdinalIgnoreCase) -or
+            $hostName -eq 'steamuserimages-a.akamaihd.net'
+        if (!$steamHost -or !$uri.IsDefaultPort -or $uri.UserInfo) { throw 'Unexpected HTTP preview host/port. No image downloaded; send local/workshop-prepare-report.txt.' }
+        $builder = [UriBuilder]::new($uri)
+        $builder.Scheme = 'https'
+        $builder.Port = -1
+        $uri = $builder.Uri
+    }
+    if ($uri.Scheme -ne 'https' -or $uri.UserInfo) { throw 'Preview must use HTTPS. Send local/workshop-prepare-report.txt.' }
+    return $uri.AbsoluteUri
+}
