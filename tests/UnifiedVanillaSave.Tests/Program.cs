@@ -126,6 +126,31 @@ var tests = new (string Name, Action Run)[]
         }
         finally { File.Delete(configPath); }
     })),
+    ("fresh Workshop config uses only a reviewed build and no machine paths from the author", () => WithTree((source, backup) =>
+    {
+        var hashes = new Dictionary<string, string> { ["GetAccountDir"]="account", ["GetProfileDir"]="profile" };
+        var config = RuntimeBootstrap.NewReviewedConfig(ReviewedBuilds.V01131Hash, source, backup, hashes);
+        Equal(FirstBackup.Canonical(source), config.UserDataRoot);
+        Equal(FirstBackup.Canonical(backup), config.BackupDirectory);
+        if (!config.CallersAndVanillaLayoutVerified) throw new Exception("Reviewed config incomplete");
+        Throws<InvalidOperationException>(() => RuntimeBootstrap.NewReviewedConfig("unknown", source, backup, hashes));
+    })),
+    ("runtime keeps existing config and rejects unknown first-run assemblies without writes", () => WithTree((source, backup) =>
+    {
+        var path = source + ".runtime-config";
+        var existing = new AuditConfig("existing", "legacy", source, backup, "user-version", true);
+        var json = System.Text.Json.JsonSerializer.Serialize(existing);
+        File.WriteAllText(path, json);
+        try
+        {
+            var loaded = RuntimeBootstrap.LoadOrCreate(typeof(Compatibility).Assembly, source, path, backup + "-unused");
+            Equal(backup, loaded.BackupDirectory);
+            Equal(json, File.ReadAllText(path));
+            Throws<InvalidOperationException>(() => RuntimeBootstrap.LoadOrCreate(typeof(Compatibility).Assembly, source, path + "-missing", backup));
+            if (File.Exists(path + "-missing")) throw new Exception("Unknown build created config");
+        }
+        finally { File.Delete(path); }
+    })),
     ("assembly change rejected before binding a target", () =>
         Throws<InvalidOperationException>(() => Compatibility.ResolvePaths(typeof(Compatibility).Assembly,
             new AuditConfig(new string('0', 64), "", "", "", "test", true))))

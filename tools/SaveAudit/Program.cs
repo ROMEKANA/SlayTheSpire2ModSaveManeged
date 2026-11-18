@@ -2,6 +2,15 @@ using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using UnifiedVanillaSave.Core;
 
+if (args.Length == 2 && args[0] == "release-audit")
+{
+    var hash = Compatibility.HashFile(args[1]);
+    var version = ReviewedBuilds.VersionFor(hash)
+        ?? throw new InvalidOperationException("Unreviewed game DLL cannot be prepared for automatic first-run distribution.");
+    SaveAudit.PathMethodAudit.Read(args[1]);
+    Console.WriteLine($"RELEASE_AUDIT game={version}; sha256={hash}");
+    return;
+}
 if (args.Length == 5 && args[0] == "setup-config")
 {
     try { SaveAudit.SetupConfig.Run(args[1], args[2], args[3], args[4]); }
@@ -32,7 +41,7 @@ if (args.Length == 3 && args[0] == "backup")
 }
 if (args.Length != 2 || args[0] != "inspect")
 {
-    Console.Error.WriteLine("Usage: SaveAudit setup-config <sts2.dll> <user-root> <config.json> <fallback-backup> | path-config <sts2.dll> <config.json> | paths <sts2.dll> | inspect <sts2.dll> | backup <Godot-user-data-root> <backup-directory>");
+    Console.Error.WriteLine("Usage: SaveAudit release-audit <sts2.dll> | setup-config <sts2.dll> <user-root> <config.json> <fallback-backup> | path-config <sts2.dll> <config.json> | paths <sts2.dll> | inspect <sts2.dll> | backup <Godot-user-data-root> <backup-directory>");
     Environment.ExitCode = 2;
     return;
 }

@@ -7,11 +7,12 @@ public static class SetupConfig
 {
     // Fingerprint from the user's v0.113.1 runtime log, paired with the reviewed provider source.
     // Unknown builds still require a matching previously confirmed local audit.
-    public const string ReviewedGameHash = "62ECBE91093E1FA862DE4329AAC865209DCB297804CAF0F0520D92D8C0B4A9C3";
+    public const string ReviewedGameHash = ReviewedBuilds.V01131Hash;
 
     public static AuditConfig Choose(AuditConfig? existing, string assemblyHash, string userRoot, string fallbackBackup)
     {
-        var known = assemblyHash.Equals(ReviewedGameHash, StringComparison.OrdinalIgnoreCase);
+        var reviewedVersion = ReviewedBuilds.VersionFor(assemblyHash);
+        var known = reviewedVersion is not null;
         var locallyReviewed = existing is not null && existing.CallersAndVanillaLayoutVerified &&
             !string.IsNullOrWhiteSpace(existing.AuditedGameVersion) &&
             assemblyHash.Equals(existing.GameAssemblySha256, StringComparison.OrdinalIgnoreCase);
@@ -19,7 +20,7 @@ public static class SetupConfig
             throw new InvalidOperationException("This game DLL has no matching source audit. Setup stopped before changing config or saves. Supply a SaveAudit paths report for review; do not hand-edit audit flags.");
         return new AuditConfig(assemblyHash, existing?.MethodIlSha256 ?? "", userRoot,
             string.IsNullOrWhiteSpace(existing?.BackupDirectory) ? fallbackBackup : existing.BackupDirectory,
-            known ? "0.113.1" : existing!.AuditedGameVersion, true);
+            reviewedVersion ?? existing!.AuditedGameVersion, true);
     }
 
     public static void Run(string assemblyPath, string userRoot, string configPath, string fallbackBackup)

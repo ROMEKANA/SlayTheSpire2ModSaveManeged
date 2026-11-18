@@ -17,3 +17,10 @@ jobs:
       - name: Setup script checks (fixture files only)
         shell: pwsh
         run: ./tests/Setup.Tests.ps1
+      - name: Workshop scripts (fixtures only; no upload)
+        shell: pwsh
+        run: ./tests/Workshop.Tests.ps1
+      - name: Windows PowerShell 5.1 Workshop fixtures
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./tests/Workshop.Tests.ps1

@@ -68,3 +68,11 @@ Keep pure metadata/policy tests and shared patch-code tests independent of the g
 Test default and explicit nullable-state inputs, warm callers, last-profile selection, all affected path categories, real read/write round trips where available, global-state preservation, old-namespace retention, conflicts and owner-scoped cleanup. Fixture success, actual-game compilation and owner acceptance are different outcomes.
 
 For a new STS2 repository, copy AGENTS.md and this file to its root, merge with existing rules, and have Codex create project-specific scripts/contracts. Do not transfer this MOD's identity, reviewed DLL fingerprints, audit config, local paths, user data or backup payloads as ready-made approvals. This repository's detailed RESEARCH/VALIDATION notes are historical project evidence, not additional portable instruction files.
+
+## Workshop automation lessons
+
+For an existing Workshop item, explicitly pass its fixed ID to the uploader and validate local ID records before building/uploading. Never fall back to item creation after an ambiguous failure. Stage an allowlist of payload files, not the installed MOD directory or the entire build output. Referenced proprietary DLLs, test dependencies, author configs and personal saves do not belong in content/.
+
+Check the versioned uploader source before claiming metadata preservation. Mega Crit uploader v0.2.0 leaves null title/description/visibility untouched, but always resends its mandatory preview and updates dependencies/game branch constraints. Reuse the current preview or stop for an explicit original image; document unavoidable effects. Use Steam BBCode for listing text. Pin and checksum downloaded tools, keep process output and exit codes in ignored reports, and distinguish fixture tests from actual Steam submission.
+
+A Workshop package must work on a recipient's fresh machine, not only the author's already configured account. If runtime safety needs per-user config/backups, automate creation against reviewed game evidence before enabling hooks, preserve existing settings and fail closed on unknown builds. SDK/build tools are developer prerequisites, not runtime requirements for subscribing users. Test a clean config directory locally before claiming subscription-only installation is verified.

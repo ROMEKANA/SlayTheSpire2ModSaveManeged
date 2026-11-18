@@ -25,14 +25,17 @@ public static class ModEntry
             try
             {
                 var configPath = Environment.GetEnvironmentVariable("UVS_CONFIG") ?? Path.Combine(home, "config.json");
-                var config = Compatibility.ReadConfig(configPath);
                 var game = typeof(ModInitializerAttribute).Assembly;
                 Log($"Loaded mod: {typeof(ModEntry).Assembly.Location}; SHA256={Compatibility.HashFile(typeof(ModEntry).Assembly.Location)}");
                 Log($"Game assembly: {game.Location}; MVID={game.ManifestModule.ModuleVersionId}");
+                var actualRoot = FirstBackup.Canonical(ProjectSettings.GlobalizePath("user://"));
+                var hadConfig = File.Exists(configPath);
+                var config = RuntimeBootstrap.LoadOrCreate(game, actualRoot, configPath,
+                    Path.Combine(Path.GetDirectoryName(Path.GetFullPath(configPath))!, "backups", "first"));
+                Log($"Config {(hadConfig ? "loaded" : "created automatically for reviewed build")}: {configPath}");
                 var methods = Compatibility.ResolvePaths(game, config);
                 Log($"Audit accepted: game={config.AuditedGameVersion}, sha256={config.GameAssemblySha256}");
                 foreach (var method in methods) Log("Audited relative selector: " + method);
-                var actualRoot = FirstBackup.Canonical(ProjectSettings.GlobalizePath("user://"));
                 if (!string.Equals(actualRoot, FirstBackup.Canonical(config.UserDataRoot),
                     OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
                     throw new InvalidOperationException("Configured user-data root differs from Godot user://.");

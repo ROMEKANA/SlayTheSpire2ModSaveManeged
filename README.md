@@ -2,11 +2,51 @@
 
 Slay the Spire 2のMODあり・なしでバニラ側のプロフィール保存先を使用する、独立したC# MODです。標準ローダーとゲーム同梱Harmonyを使い、BaseLib/RitsuLibには依存しません。セーブの移行・双方向同期は行わず、初回バックアップだけを作成します。
 
-0.3.0では通常の保存で使われる共通の相対パス選択処理 `GetAccountDir(bool?)` と `GetProfileDir(int, bool?)` の2つを対象にします。未指定のMOD状態引数だけをfalseへ補正し、元の処理をそのまま実行します。グローバルMOD判定と明示的な旧保存先の照会は変更しません。`affects_gameplay:false` はローカルutilityとして採用していますが、マルチ互換性は未確認です。
+0.3.0以降は通常の保存で使われる共通の相対パス選択処理 `GetAccountDir(bool?)` と `GetProfileDir(int, bool?)` の2つを対象にします。未指定のMOD状態引数だけをfalseへ補正し、元の処理をそのまま実行します。グローバルMOD判定と明示的な旧保存先の照会は変更しません。`affects_gameplay:false` はローカルutilityとして採用していますが、マルチ互換性は未確認です。
 
 **独立テストの成功と実機での進行共有成功は別です。** 実ゲームDLLでのビルド・起動・MODあり/なしの進行共有はローカルPCで確認します。[調査とパッチ契約](docs/RESEARCH.md)、[検証記録](docs/VALIDATION.md)も参照してください。
 
 **実機確認状況:** 0.3.0について、ユーザーから動作成功の報告を受けています。Cloudからゲームを実行した結果ではなく、全profile・マルチ・Cloud同期の全組み合わせを確認したという意味ではありません。
+
+## v0.4.0: 初回設定の自動化
+
+完成済みMODの利用者はSDKやJSONの手編集を必要としません。設定がない場合、ソース確認済みゲームDLL（v0.113.1の特定フィンガープリント）に限り、起動時に設定を生成し、初回バックアップが完了してから保存先を切り替えます。既存設定・バックアップ先は維持します。未知のDLL、設定不整合、バックアップ失敗やパッチ競合では初期化を停止します。
+
+標準の設定・ログは `%LOCALAPPDATA%\UnifiedVanillaSave`、バックアップはその中の `backups\first` です。バックアップには時間と空き容量が必要です。初期化エラーが出た場合はプレイせず終了し、ログを確認してください。新規導入時の自動設定とWorkshopからの導入は実機未検証です。既存v0.3.0の動作成功報告と区別しています。
+
+## 開発者: 既存Workshop項目の更新
+
+作業場所はこのリポジトリのルートです。既存の `local/paths.txt` を使います。下のスクリプトはビルド・DLL監査・配布用ステージ作成・公式アップローダーの取得と検証・既存項目 **3841494553** の更新まで行います。セーブ、設定、インストール済みMODは変更しません。実行には.NET 9 SDKと、対象項目の所有者でログイン済みのWindows版Steamが必要です。
+
+通常は**掲載済みタイトル・説明文・公開範囲を維持**します。説明文の書き換えは明示指定時だけです。既存の表紙画像を取得して再利用します。Steamへの問い合わせが失敗した場合は停止し、別画像に自動で置き換えません。
+
+アップロードせず、ビルドと配布用ファイルの準備だけ行う。
+```powershell
+.\scripts\Publish-Workshop.ps1 -PrepareOnly
+```
+
+既存Workshop項目のMODファイルを更新する（掲載文は維持）。
+```powershell
+.\scripts\Publish-Workshop.ps1
+```
+
+掲載文も更新する場合だけ、同梱の説明文を明示指定して更新する。
+```powershell
+.\scripts\Publish-Workshop.ps1 -UpdateListingText
+```
+
+表紙の自動取得に失敗した場合だけ、現在の表紙の元画像を指定して再実行する（下の画像を事前に置く）。
+```powershell
+.\scripts\Publish-Workshop.ps1 -PreviewImage .\local\workshop-preview.png
+```
+
+配布物は `local/workshop/UnifiedVanillaSave/content` の **UnifiedVanillaSave.dll と UnifiedVanillaSave.json の2ファイル**です。CoreのコードはMOD DLLに含まれます。2つ目のDLLやゲームDLL・Harmony・Godot・設定・セーブは配布しません。
+
+任意更新用の掲載文は [workshop/description.txt](workshop/description.txt)（Steam BBCode）です。現時点ではv0.4.0の初回自動設定が実機未検証であることも記載しています。公開前に、新規設定のWindowsユーザーで起動・初回バックアップ・両方向の進行共有を確認してください。Cloudからの実Steam更新は実行していません。
+
+準備・ビルド・監査・送信の出力は、それぞれ `local/workshop-prepare-report.txt`、`local/workshop-build-report.txt`、`local/workshop-audit-report.txt`、`local/workshop-upload-report.txt` に保存します。失敗時は該当ファイルを送ってください。前回のレポートは `.previous`、以前の準備済みフォルダは `local/previous-workshop-*` に保持します。新規項目を作る処理はなく、失敗しても同じ項目IDへ再試行します。
+
+公式アップローダーv0.2.0の仕様により、表紙は再送信され、依存MOD一覧は空に、ゲームブランチ制約は未指定に設定されます。タグ・追加画像・コンテンツ記述子は指定せず保持します。「全メタデータを完全維持」する仕様ではありません。送信結果と表示はSteam側でも確認してください。実行権限の問題は後述の対処を使ってください。
 
 ## 他のリポジトリへ持っていくAI向け資料
 
@@ -150,7 +190,7 @@ notepad .\local\paths.txt
 
 ## ログと実機確認
 
-セットアップ後、ゲームを起動してMODのバージョン0.3.0を確認します。
+セットアップ後、ゲームを起動してMODのバージョン0.4.0を確認します。
 
 既定の場所の最新ログを表示する。
 ```powershell

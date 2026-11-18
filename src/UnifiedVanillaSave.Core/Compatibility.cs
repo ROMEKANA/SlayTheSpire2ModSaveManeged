@@ -28,6 +28,19 @@ public static class Compatibility
             throw new InvalidOperationException("sts2.dll changed. Re-audit before enabling this mod.");
         if (config.PathMethodIlSha256 is null || PathMethodNames.Any(n => !config.PathMethodIlSha256.ContainsKey(n)))
             throw new InvalidOperationException("Older wrapper/absolute-path audits cannot enable relative selector patches. Run scripts/Setup.ps1 to regenerate config for the audited DLL.");
+        var methods = FindPaths(game);
+        foreach (var method in methods)
+        {
+            var il = method.GetMethodBody()?.GetILAsByteArray()
+                ?? throw new InvalidOperationException("Target has no readable IL: " + method.Name);
+            if (!Hash(il).Equals(config.PathMethodIlSha256[method.Name], StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Relative selector IL differs from local audit: " + method.Name);
+        }
+        return methods;
+    }
+
+    public static MethodInfo[] FindPaths(Assembly game)
+    {
         var type = game.GetType(TargetType, throwOnError: true)!;
         return PathMethodNames.Select(name =>
         {
@@ -37,12 +50,8 @@ public static class Compatibility
                 binder: null, types: arguments, modifiers: null);
             if (method is null || method.ReturnType != typeof(string) || method.IsGenericMethod)
                 throw new MissingMethodException("Audited relative selector signature changed: " + name);
-            var il = method.GetMethodBody()?.GetILAsByteArray()
-                ?? throw new InvalidOperationException("Target has no readable IL: " + name);
-            if (!Hash(il).Equals(config.PathMethodIlSha256[name], StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Relative selector IL differs from local audit: " + name);
             return method;
-        }).ToArray(); // Validate BOTH before applying ANY patch.
+        }).ToArray();
     }
 
     public static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));
