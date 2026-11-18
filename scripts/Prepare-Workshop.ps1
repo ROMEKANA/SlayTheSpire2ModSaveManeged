@@ -71,7 +71,12 @@ try {
     $image = [IO.File]::ReadAllBytes((Join-Path $temp 'image.png'))
     $png = $image.Length -ge 8 -and [BitConverter]::ToString($image[0..7]) -eq '89-50-4E-47-0D-0A-1A-0A'
     $jpeg = $image.Length -ge 3 -and [BitConverter]::ToString($image[0..2]) -eq 'FF-D8-FF'
-    if ($image.Length -ge 1MB -or !($png -or $jpeg)) { throw 'Preview must be PNG/JPEG smaller than 1 MB. Supply -PreviewImage with the original preview.' }
+    if (!($png -or $jpeg)) { throw 'Preview is not a PNG or JPEG. Renaming a file does not convert its format.' }
+    if ($image.Length -ge 1MB) {
+        $compressed = Compress-UvsPreview $image
+        [IO.File]::WriteAllBytes((Join-Path $temp 'image.png'), $compressed)
+        Write-Host "Compressed Workshop preview: $($image.Length) -> $($compressed.Length) bytes"
+    }
     if ($PreviewImage) {
         # An explicit original image becomes persistent owner input, not an API cache.
         $rememberedTemp = $rememberedPreview + '.tmp-' + [guid]::NewGuid().ToString('N')

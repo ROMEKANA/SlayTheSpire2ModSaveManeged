@@ -103,6 +103,17 @@ function Invoke-WebRequest($Uri, $OutFile, [switch]$UseBasicParsing) {
     & $prepare -PathsFile $paths
     Assert-UvsWorkspace $workspace $false
     if ((Get-FileHash (Join-Path $workspace 'image.png')).Hash -ne (Get-FileHash $preview).Hash) { throw 'Remembered preview changed' }
+    if ($env:OS -eq 'Windows_NT') {
+        $largePreview = Join-Path $root 'oversize.png'
+        $original = [byte[]]::new(1MB + 1)
+        $pngBytes = [IO.File]::ReadAllBytes($preview)
+        [Array]::Copy($pngBytes, $original, $pngBytes.Length)
+        [IO.File]::WriteAllBytes($largePreview, $original)
+        & $prepare -PathsFile $paths -PreviewImage $largePreview
+        $stagedPreview = Get-Item (Join-Path $workspace 'image.png')
+        if ($stagedPreview.Length -ge 1MB) { throw 'Oversized preview remains in the upload workspace' }
+        if ((Get-FileHash (Join-Path $local 'workshop-preview.png')).Hash -ne (Get-FileHash $largePreview).Hash) { throw 'Compression changed the remembered original' }
+    }
     $validOriginal = (Get-FileHash (Join-Path $local 'workshop-preview.png')).Hash
     $invalidPreview = Join-Path $root 'invalid.png'
     Set-Content $invalidPreview 'not an image'

@@ -79,3 +79,35 @@ function Get-UvsPreviewUri($Item, $Report) {
     if ($uri.Scheme -ne 'https' -or $uri.UserInfo) { throw 'Preview must use HTTPS. Send local/workshop-prepare-report.txt.' }
     return $uri.AbsoluteUri
 }
+
+function Compress-UvsPreview([byte[]]$Bytes) {
+    if ($env:OS -ne 'Windows_NT') { throw 'Automatic preview compression requires Windows.' }
+    Add-Type -AssemblyName System.Drawing
+    $inputStream = [IO.MemoryStream]::new($Bytes)
+    try {
+        $sourceImage = [Drawing.Image]::FromStream($inputStream)
+        try {
+            $scale = [Math]::Min(1.0, 1024.0 / [Math]::Max($sourceImage.Width, $sourceImage.Height))
+            do {
+                $width = [int][Math]::Max(1, [Math]::Floor($sourceImage.Width * $scale))
+                $height = [int][Math]::Max(1, [Math]::Floor($sourceImage.Height * $scale))
+                $bitmap = [Drawing.Bitmap]::new($width, $height)
+                $outputStream = [IO.MemoryStream]::new()
+                try {
+                    $graphics = [Drawing.Graphics]::FromImage($bitmap)
+                    try {
+                        $graphics.InterpolationMode = [Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+                        $graphics.DrawImage($sourceImage, 0, 0, $width, $height)
+                    } finally { $graphics.Dispose() }
+                    $bitmap.Save($outputStream, [Drawing.Imaging.ImageFormat]::Png)
+                    if ($outputStream.Length -lt 1MB) { return ,($outputStream.ToArray()) }
+                } finally {
+                    $outputStream.Dispose()
+                    $bitmap.Dispose()
+                }
+                $scale *= 0.8
+            } while ($width -gt 1 -or $height -gt 1)
+            throw 'Could not reduce the preview below 1 MB.'
+        } finally { $sourceImage.Dispose() }
+    } finally { $inputStream.Dispose() }
+}

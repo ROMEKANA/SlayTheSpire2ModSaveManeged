@@ -42,6 +42,8 @@ Slay the Spire 2のMODあり・なしでバニラ側のプロフィール保存�
 
 この画像を置いた後は通常のコマンドでも自動利用します。別の場所の画像を `-PreviewImage` で指定した場合も、検証後に `local/workshop-preview.png` へ保存して記憶します。これは所有者が選んだ表紙の元画像として扱い、匿名APIには問い合わせません。Web上で表紙を変えた場合はこのファイルも更新するか、削除してAPIからの取得へ戻してください。
 
+Windowsでは、1 MB以上のPNG・JPEGを配布準備時に縦横比を保って縮小し、1 MB未満のPNGに変換します。元画像はそのまま保存します。
+
 配布物は `local/workshop/UnifiedVanillaSave/content` の **UnifiedVanillaSave.dll と UnifiedVanillaSave.json の2ファイル**です。CoreのコードはMOD DLLに含まれます。2つ目のDLLやゲームDLL・Harmony・Godot・設定・セーブは配布しません。
 
 任意更新用の掲載文は [workshop/description.txt](workshop/description.txt)（Steam BBCode）です。現時点ではv0.4.0の初回自動設定が実機未検証であることも記載しています。公開前に、新規設定のWindowsユーザーで起動・初回バックアップ・両方向の進行共有を確認してください。Cloudからの実Steam更新は実行していません。
