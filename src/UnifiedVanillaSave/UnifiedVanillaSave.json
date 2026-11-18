@@ -3,7 +3,7 @@
   "name": "Unified Vanilla Save",
   "author": "ROMEKANA",
   "description": "Shares vanilla saves without changing global mod detection. Creates local settings and a first backup on reviewed game builds.",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "min_game_version": "0.113.1",
   "has_pck": false,
   "has_dll": true,

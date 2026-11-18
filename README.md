@@ -8,11 +8,11 @@ Slay the Spire 2のMODあり・なしでバニラ側のプロフィール保存�
 
 **実機確認状況:** 0.3.0について、ユーザーから動作成功の報告を受けています。Cloudからゲームを実行した結果ではなく、全profile・マルチ・Cloud同期の全組み合わせを確認したという意味ではありません。
 
-## v0.4.1: 初回設定の自動化
+## v0.4.2: 初回設定の自動化
 
 完成済みMODの利用者はSDKやJSONの手編集を必要としません。設定がない場合、ソース確認済みゲームDLL（v0.113.1の特定フィンガープリント）に限り、起動時に設定を生成し、初回バックアップが完了してから保存先を切り替えます。既存設定・バックアップ先は維持します。未知のDLL、設定不整合、バックアップ失敗やパッチ競合では初期化を停止します。
 
-バックアップでは、起動中にGodotが使用するゲームのユーザーデータ直下の `logs` フォルダを除外します。既存の初回バックアップは引き続き利用できます。
+バックアップでは、起動中に使用されるゲームのユーザーデータ直下の `logs`（Godot）と `sentry`（クラッシュ報告）を除外します。既存の初回バックアップは引き続き利用できます。
 
 標準の設定・ログは `%LOCALAPPDATA%\UnifiedVanillaSave`、バックアップはその中の `backups\first` です。バックアップには時間と空き容量が必要です。初期化エラーが出た場合はプレイせず終了し、ログを確認してください。新規導入時の自動設定とWorkshopからの導入は実機未検証です。既存v0.3.0の動作成功報告と区別しています。
 
@@ -48,7 +48,7 @@ Windowsでは、1 MB以上のPNG・JPEGを配布準備時に縦横比を保っ�
 
 配布物は `local/workshop/UnifiedVanillaSave/content` の **UnifiedVanillaSave.dll と UnifiedVanillaSave.json の2ファイル**です。CoreのコードはMOD DLLに含まれます。2つ目のDLLやゲームDLL・Harmony・Godot・設定・セーブは配布しません。
 
-任意更新用の掲載文は [workshop/description.txt](workshop/description.txt)（Steam BBCode）です。現時点ではv0.4.1の初回自動設定が実機未検証であることも記載しています。公開前に、新規設定のWindowsユーザーで起動・初回バックアップ・両方向の進行共有を確認してください。Cloudからの実Steam更新は実行していません。
+任意更新用の掲載文は [workshop/description.txt](workshop/description.txt)（Steam BBCode）です。現時点ではv0.4.2の初回自動設定が実機未検証であることも記載しています。公開前に、新規設定のWindowsユーザーで起動・初回バックアップ・両方向の進行共有を確認してください。Cloudからの実Steam更新は実行していません。
 
 準備・ビルド・監査・送信の出力は、それぞれ `local/workshop-prepare-report.txt`、`local/workshop-build-report.txt`、`local/workshop-audit-report.txt`、`local/workshop-upload-report.txt` に保存します。失敗時は該当ファイルを送ってください。前回のレポートは `.previous`、以前の準備済みフォルダは `local/previous-workshop-*` に保持します。新規項目を作る処理はなく、失敗しても同じ項目IDへ再試行します。
 
@@ -203,7 +203,7 @@ notepad .\local\paths.txt
 
 ## ログと実機確認
 
-セットアップ後、ゲームを起動してMODのバージョン0.4.1を確認します。
+セットアップ後、ゲームを起動してMODのバージョン0.4.2を確認します。
 
 既定の場所の最新ログを表示する。
 ```powershell
