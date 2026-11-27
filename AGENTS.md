@@ -47,7 +47,8 @@
 - Derive destinations and references from that file. Do not repeatedly ask the owner to re-enter directories, copy hashes into JSON, set audit flags or move old installations by hand.
 - Preserve user-selected backup destinations and config settings. Back up config before replacement and write it atomically. Preserve first snapshots instead of overwriting them with later progress.
 - Stop before replacing a working installation if validation or build fails. Lock concurrent setup runs. Stage only declared payloads, preserve the previous release outside any loader-scanned directory, and restore it if installation fails. Preserve partial output for diagnosis.
-- If automatic configuration requires a reviewed external version, carry forward only a matching audit or a source-reviewed fingerprint. Stop for investigation on unknown builds rather than guessing or requesting manual approval flags.
+- For game MODs, prefer checking the required APIs, signatures, and behavior over pinning a game version or allowlisting whole-DLL hashes. Apply this to the manifest, runtime, setup, and release tooling. Keep a version restriction only when compatibility evidence requires it, and document the reason and scope. When a required contract fails, log the failed check and stop the affected feature before applying changes.
+- If an external version must be reviewed explicitly, reuse a prior audit only when its evidence applies to the installed build. Investigate unverified behavior before approving it.
 - Keep normal instructions brief and in Japanese for this owner. Put technical details in development documentation and actionable errors in scripts.
 
 ## Permission errors and troubleshooting documentation

@@ -6,7 +6,7 @@ Slay the Spire 2のMODあり・なしでバニラ側のプロフィール保存�
 
 **独立テストの成功と実機での進行共有成功は別です。** 実ゲームDLLでのビルド・起動・MODあり/なしの進行共有はローカルPCで確認します。[調査とパッチ契約](docs/RESEARCH.md)、[検証記録](docs/VALIDATION.md)も参照してください。
 
-**実機確認状況:** 0.3.0について、ユーザーから動作成功の報告を受けています。Cloudからゲームを実行した結果ではなく、全profile・マルチ・Cloud同期の全組み合わせを確認したという意味ではありません。
+ゲーム更新後に **v0.5.0 で動作が復旧した**とユーザーから報告を受けています。新規導入、全プロフィール、マルチプレイ、Steam Cloud の個別の確認結果は未報告です。
 
 ## v0.5.0 ゲーム更新時の互換性
 
@@ -16,7 +16,7 @@ Slay the Spire 2のMODあり・なしでバニラ側のプロフィール保存�
 
 バックアップでは、起動中に使用されるゲームのユーザーデータ直下の `logs`（Godot）と `sentry`（クラッシュ報告）を除外します。既存の初回バックアップは引き続き利用できます。
 
-標準の設定・ログは `%LOCALAPPDATA%\UnifiedVanillaSave`、バックアップはその中の `backups\first` です。バックアップには時間と空き容量が必要です。初期化エラーが出た場合はプレイせず終了し、ログを確認してください。新規導入時の自動設定とWorkshopからの導入は実機未検証です。既存v0.3.0の動作成功報告と区別しています。
+標準の設定・ログは `%LOCALAPPDATA%\UnifiedVanillaSave`、バックアップはその中の `backups\first` です。バックアップには時間と空き容量が必要です。初期化エラーが出た場合はプレイせず終了し、ログを確認してください。v0.5.0の新規導入時の自動設定とWorkshop経由での導入は実機未検証です。
 
 ## 開発者: 既存Workshop項目の更新
 
@@ -50,7 +50,7 @@ Windowsでは、1 MB以上のPNG・JPEGを配布準備時に縦横比を保っ�
 
 配布物は `local/workshop/UnifiedVanillaSave/content` の **UnifiedVanillaSave.dll と UnifiedVanillaSave.json の2ファイル**です。CoreのコードはMOD DLLに含まれます。2つ目のDLLやゲームDLL・Harmony・Godot・設定・セーブは配布しません。
 
-任意更新用の掲載文は [workshop/description.txt](workshop/description.txt)（Steam BBCode）です。公開前に、Windowsで設定がない状態からの起動・初回バックアップ・両方向の進行共有を確認してください。v0.5.0の実機確認とSteam公開は未実施です。
+任意更新用の掲載文は [workshop/description.txt](workshop/description.txt)（Steam BBCode）です。公開前に、Windowsで設定がない状態からの起動・初回バックアップ・両方向の進行共有を確認してください。
 
 準備・ビルド・監査・送信の出力は、それぞれ `local/workshop-prepare-report.txt`、`local/workshop-build-report.txt`、`local/workshop-audit-report.txt`、`local/workshop-upload-report.txt` に保存します。失敗時は該当ファイルを送ってください。前回のレポートは `.previous`、以前の準備済みフォルダは `local/previous-workshop-*` に保持します。新規項目を作る処理はなく、失敗しても同じ項目IDへ再試行します。
 
