@@ -235,7 +235,29 @@ Loaded表示・これらのログだけで保存完了とは判断しません�
 .\scripts\Export-SaveSources.ps1
 ```
 
-出力は `local/save-sources.txt` です。SDK互換性を確認済みのILSpyCmd 9.1.0.7988を使用し、なければ自動導入します。レポートにはゲームDLLのハッシュと対象ソースを含み、セーブ内容・config・生の個人パスは含めません。生成コードはGit対象外に置き、MODへ同梱しません。
+既定の出力は `local/save-sources.txt` です。詳細レポートにはゲームDLLのハッシュと逆コンパイルしたソースが含まれます。保存経路の確認が必要なときはチャットに添付してください。保存先は `-OutputPath` で指定できます。ILSpyCmd 9.1.0.7988は必要に応じて自動導入します。
+
+GitHubでゲームDLLの識別情報を共有する場合は、公開用レポートを出力する。
+```powershell
+.\scripts\Export-SaveSources.ps1 -GitHubReport
+```
+
+`diagnostics/save-build.txt` にアセンブリのバージョンとSHA-256を保存します。このモードは .NET SDK や ILSpyCmd を必要としません。GitHubで対象ビルドを特定できます。保存経路の調査には詳細レポートが必要です。
+
+公開用レポートをステージする。
+```powershell
+git add -- diagnostics/save-build.txt
+```
+
+公開用レポートだけをコミットする。
+```powershell
+git commit -m "Record game build metadata" -- diagnostics/save-build.txt
+```
+
+GitHubへ送信する。
+```powershell
+git push origin main
+```
 
 
 ゲームDLLなしの独立テストと監査ツールをビルドする（Bash）。
