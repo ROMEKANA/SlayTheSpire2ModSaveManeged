@@ -40,10 +40,9 @@ Set-Content (Join-Path $stage 'UnifiedVanillaSave.json') 'fixture manifest'
 '@ | Set-Content (Join-Path $scripts 'Build.ps1')
     $pathsFile = Join-Path $fixture 'local/paths.txt'
     New-Item -ItemType Directory -Path (Split-Path $pathsFile -Parent) -Force | Out-Null
-    $assemblyHash = (Get-FileHash (Join-Path $data 'sts2.dll') -Algorithm SHA256).Hash
     $configPath = Join-Path $configDir 'config.json'
     @{
-        GameAssemblySha256=$assemblyHash; MethodIlSha256='legacy'; UserDataRoot=$userRoot;
+        GameAssemblySha256='old-game'; MethodIlSha256='legacy'; UserDataRoot=$userRoot;
         BackupDirectory=$backup; AuditedGameVersion='fixture'; CallersAndVanillaLayoutVerified=$true
     } | ConvertTo-Json | Set-Content $configPath
     $setup = Join-Path $scripts 'Setup.ps1'
@@ -55,20 +54,20 @@ Set-Content (Join-Path $stage 'UnifiedVanillaSave.json') 'fixture manifest'
     if (!(Test-Path (Join-Path $installed 'UnifiedVanillaSave.dll'))) { throw 'Installation missing' }
     if ((Get-Content (Join-Path $userRoot 'save-marker')) -ne 'preserve progress') { throw 'Source save changed' }
     $config = Get-Content $configPath -Raw | ConvertFrom-Json
-    if ($config.BackupDirectory -ne $backup -or !$config.PathMethodIlSha256.GetAccountDir) { throw 'Config migration wrong' }
+    if ($config.BackupDirectory -ne $backup -or $config.GameAssemblySha256 -ne 'old-game') { throw 'Legacy config changed' }
     if (!(Test-Path (Join-Path $backup 'receipt.json'))) { throw 'First backup missing' }
-    Write-Host 'PASS setup migrates config, preserves saves/backup destination and installs'
+    Write-Host 'PASS setup accepts a different game hash, preserves legacy config and installs'
     & $setup -PathsFile $pathsFile
     if (@(Get-ChildItem $configDir -Directory -Filter 'previous-mod-*').Count -ne 1) { throw 'Old MOD not preserved' }
     Write-Host 'PASS repeated setup preserves prior installation'
     $configBeforeFailure = Get-Content $configPath -Raw
     $assemblyBefore = [IO.File]::ReadAllBytes((Join-Path $data 'sts2.dll'))
-    Set-Content (Join-Path $data 'sts2.dll') 'unknown DLL'
+    Set-Content (Join-Path $data 'sts2.dll') 'invalid DLL'
     $rejected = $false
     try { & $setup -PathsFile $pathsFile } catch { $rejected = $true }
-    if (!$rejected -or (Get-Content $configPath -Raw) -ne $configBeforeFailure -or !(Test-Path $installed)) { throw 'Unknown DLL was not rejected cleanly' }
+    if (!$rejected -or (Get-Content $configPath -Raw) -ne $configBeforeFailure -or !(Test-Path $installed)) { throw 'Invalid DLL was not rejected cleanly' }
     [IO.File]::WriteAllBytes((Join-Path $data 'sts2.dll'), $assemblyBefore)
-    Write-Host 'PASS unknown DLL stops before modifying config or installed MOD'
+    Write-Host 'PASS invalid DLL stops before modifying config or installed MOD'
     @'
 param([string]$GameDir, [string]$GameDataDir)
 $target = Join-Path $GameDir 'mods/UnifiedVanillaSave'

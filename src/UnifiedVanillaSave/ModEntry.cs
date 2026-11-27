@@ -27,19 +27,19 @@ public static class ModEntry
                 var configPath = Environment.GetEnvironmentVariable("UVS_CONFIG") ?? Path.Combine(home, "config.json");
                 var game = typeof(ModInitializerAttribute).Assembly;
                 Log($"Loaded mod: {typeof(ModEntry).Assembly.Location}; SHA256={Compatibility.HashFile(typeof(ModEntry).Assembly.Location)}");
-                Log($"Game assembly: {game.Location}; MVID={game.ManifestModule.ModuleVersionId}");
+                Log($"Game assembly: {game.Location}; MVID={game.ManifestModule.ModuleVersionId}; SHA256={Compatibility.HashFile(game.Location)}");
+                var methods = Compatibility.ResolvePaths(game);
+                SaveRoutingPatches.CheckConflicts(methods, Owner);
+                Compatibility.CheckSelectorBehavior(methods);
+                Log("Save routing compatibility checked: path factories and vanilla/modded selectors.");
                 var actualRoot = FirstBackup.Canonical(ProjectSettings.GlobalizePath("user://"));
                 var hadConfig = File.Exists(configPath);
-                var config = RuntimeBootstrap.LoadOrCreate(game, actualRoot, configPath,
+                var config = RuntimeBootstrap.LoadOrCreate(actualRoot, configPath,
                     Path.Combine(Path.GetDirectoryName(Path.GetFullPath(configPath))!, "backups", "first"));
-                Log($"Config {(hadConfig ? "loaded" : "created automatically for reviewed build")}: {configPath}");
-                var methods = Compatibility.ResolvePaths(game, config);
-                Log($"Audit accepted: game={config.AuditedGameVersion}, sha256={config.GameAssemblySha256}");
-                foreach (var method in methods) Log("Audited relative selector: " + method);
+                Log($"Config {(hadConfig ? "loaded" : "created automatically")}: {configPath}");
                 if (!string.Equals(actualRoot, FirstBackup.Canonical(config.UserDataRoot),
                     OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
                     throw new InvalidOperationException("Configured user-data root differs from Godot user://.");
-                SaveRoutingPatches.CheckConflicts(methods, Owner);
                 FirstBackup.Ensure(actualRoot, config.BackupDirectory);
                 Log("First backup verified: " + config.BackupDirectory);
                 SaveRoutingPatches.Install(harmony, methods, Owner, Log);

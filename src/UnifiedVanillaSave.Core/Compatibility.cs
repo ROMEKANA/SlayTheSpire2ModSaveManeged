@@ -1,17 +1,7 @@
 using System.Reflection;
 using System.Security.Cryptography;
-using System.Text.Json;
 
 namespace UnifiedVanillaSave.Core;
-
-public sealed record AuditConfig(
-    string GameAssemblySha256,
-    string MethodIlSha256,
-    string UserDataRoot,
-    string BackupDirectory,
-    string AuditedGameVersion,
-    bool CallersAndVanillaLayoutVerified,
-    Dictionary<string, string>? PathMethodIlSha256 = null);
 
 public static class Compatibility
 {
@@ -20,26 +10,41 @@ public static class Compatibility
     public static IReadOnlyList<string> PathMethodNames { get; } =
         Array.AsReadOnly(new[] { "GetAccountDir", "GetProfileDir" });
 
-    public static MethodInfo[] ResolvePaths(Assembly game, AuditConfig config)
+    public static MethodInfo[] ResolvePaths(Assembly game)
     {
-        if (!config.CallersAndVanillaLayoutVerified || string.IsNullOrWhiteSpace(config.AuditedGameVersion))
-            throw new InvalidOperationException("Local caller/layout audit has not been confirmed.");
-        if (!HashFile(game.Location).Equals(config.GameAssemblySha256, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("sts2.dll changed. Re-audit before enabling this mod.");
-        if (config.PathMethodIlSha256 is null || PathMethodNames.Any(n => !config.PathMethodIlSha256.ContainsKey(n)))
-            throw new InvalidOperationException("Older wrapper/absolute-path audits cannot enable relative selector patches. Run scripts/Setup.ps1 to regenerate config for the audited DLL.");
-        var methods = FindPaths(game);
-        foreach (var method in methods)
-        {
-            var il = method.GetMethodBody()?.GetILAsByteArray()
-                ?? throw new InvalidOperationException("Target has no readable IL: " + method.Name);
-            if (!Hash(il).Equals(config.PathMethodIlSha256[method.Name], StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Relative selector IL differs from local audit: " + method.Name);
-        }
-        return methods;
+        if (SaveRouteAudit.Validate(game.Location) != game.ManifestModule.ModuleVersionId)
+            throw new InvalidOperationException("On-disk game DLL differs from the loaded module. Restart after the update.");
+        return FindPaths(game);
     }
 
-    public static MethodInfo[] FindPaths(Assembly game)
+    // Probe only the two selectors, with no writes to game state or save storage.
+    public static void CheckSelectorBehavior(MethodInfo[] methods)
+    {
+        static void ExpectPath(MethodInfo method, string expected, params object?[] args)
+        {
+            var actual = (method.Invoke(null, args) as string)?.Replace('\\', '/');
+            if (!string.Equals(expected, actual, StringComparison.Ordinal))
+                throw new InvalidOperationException($"Save path layout changed in {method.Name}; expected '{expected}', got '{actual}'.");
+        }
+
+        var account = methods[0];
+        var profile = methods[1];
+        ExpectPath(account, "", false);
+        ExpectPath(account, "modded", true);
+        var defaultAccount = account.Invoke(null, [null]) as string;
+        if (defaultAccount is not ("" or "modded"))
+            throw new InvalidOperationException("Default account save path is neither vanilla nor modded.");
+        foreach (var id in new[] { 1, 2, 3 })
+        {
+            var vanilla = FormattableString.Invariant($"profile{id}");
+            var modded = "modded/" + vanilla;
+            ExpectPath(profile, vanilla, id, false);
+            ExpectPath(profile, modded, id, true);
+            ExpectPath(profile, defaultAccount == "" ? vanilla : modded, id, null);
+        }
+    }
+
+    private static MethodInfo[] FindPaths(Assembly game)
     {
         var type = game.GetType(TargetType, throwOnError: true)!;
         return PathMethodNames.Select(name =>
@@ -60,8 +65,4 @@ public static class Compatibility
         using var stream = File.OpenRead(path);
         return Convert.ToHexString(SHA256.HashData(stream));
     }
-
-    public static AuditConfig ReadConfig(string path) =>
-        JsonSerializer.Deserialize<AuditConfig>(File.ReadAllText(path), new JsonSerializerOptions
-        { PropertyNameCaseInsensitive = true }) ?? throw new InvalidDataException("Empty audit config.");
 }

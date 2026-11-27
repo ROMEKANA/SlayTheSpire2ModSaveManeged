@@ -1,12 +1,4 @@
 {
-  "GameAssemblySha256": "REPLACE_WITH_INSPECT_OUTPUT",
-  "MethodIlSha256": "LEGACY_FIELD_UNUSED_BY_0.3.0",
   "UserDataRoot": "C:\\Users\\YOUR_NAME\\AppData\\Roaming\\SlayTheSpire2",
-  "BackupDirectory": "D:\\STS2-backups\\UnifiedVanillaSave-first",
-  "AuditedGameVersion": "0.113.1",
-  "CallersAndVanillaLayoutVerified": false,
-  "PathMethodIlSha256": {
-    "GetAccountDir": "AUTOMATICALLY_GENERATED_BY_SETUP",
-    "GetProfileDir": "AUTOMATICALLY_GENERATED_BY_SETUP"
-  }
+  "BackupDirectory": "D:\\STS2-backups\\UnifiedVanillaSave-first"
 }

@@ -44,7 +44,7 @@ try {
         $hashes[$name] = (Get-FileHash -LiteralPath (Join-Path $temp "content/$name") -Algorithm SHA256).Hash
     }
     $manifest = Get-Content -LiteralPath (Join-Path $temp 'content/UnifiedVanillaSave.json') -Raw | ConvertFrom-Json
-    if ($manifest.id -ne 'UnifiedVanillaSave' -or !$manifest.has_dll -or $manifest.has_pck -or $manifest.version -ne '0.4.2') { throw 'Unexpected release manifest' }
+    if ($manifest.id -ne 'UnifiedVanillaSave' -or !$manifest.has_dll -or $manifest.has_pck -or $manifest.version -ne '0.5.0') { throw 'Unexpected release manifest' }
     $config = @{ title = $null; description = $null; visibility = $null; changeNote = ''; dependencies = @() }
     if ($UpdateListingText) {
         $config.title = [IO.File]::ReadAllText((Join-Path $repo 'workshop/title.txt')).Trim()

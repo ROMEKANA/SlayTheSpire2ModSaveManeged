@@ -1,4 +1,8 @@
+using System.Reflection.Emit;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using UnifiedVanillaSave.Core;
+using Provider = MegaCrit.Sts2.Core.Saves.UserDataPathProvider;
 
 var tests = new (string Name, Action Run)[]
 {
@@ -55,43 +59,27 @@ var tests = new (string Name, Action Run)[]
         Throws<IOException>(() => FirstBackup.Ensure(source, backup));
         if (Directory.Exists(backup)) throw new Exception("Partial backup was published");
     })),
-    ("unconfirmed audit rejected", () =>
-        Throws<InvalidOperationException>(() => Compatibility.ResolvePaths(typeof(Compatibility).Assembly,
-            new AuditConfig("", "", "", "", "", false)))),
-    ("both relative selectors are validated before patching; old audits rejected", () =>
+    ("both selectors bind and preserve default and explicit save namespaces", () =>
     {
-        var game = typeof(MegaCrit.Sts2.Core.Saves.UserDataPathProvider).Assembly;
-        var hashes = SaveAudit.PathMethodAudit.Read(game.Location);
-        var config = new AuditConfig(Compatibility.HashFile(game.Location), "unused legacy hash", "", "", "fixture", true, hashes);
-        var methods = Compatibility.ResolvePaths(game, config);
-        if (methods.Length != 2 || !methods.Select(m => m.Name).SequenceEqual(Compatibility.PathMethodNames)) throw new Exception("Wrong targets");
-        Throws<InvalidOperationException>(() => Compatibility.ResolvePaths(game, config with { PathMethodIlSha256 = null }));
-        Throws<InvalidOperationException>(() => Compatibility.ResolvePaths(game, config with {
-            PathMethodIlSha256 = new() { ["GetProfileScopedPath"] = "old", ["GetProfileScopedBasePath"] = "old" }
-        }));
-        foreach (var name in Compatibility.PathMethodNames)
+        var methods = Compatibility.ResolvePaths(typeof(Provider).Assembly);
+        if (!methods.Select(m => m.Name).SequenceEqual(Compatibility.PathMethodNames)) throw new Exception("Wrong targets");
+        foreach (var modded in new[] { false, true })
         {
-            var invalid = new Dictionary<string, string>(hashes) { [name] = "bad" };
-            Throws<InvalidOperationException>(() => Compatibility.ResolvePaths(game, config with { PathMethodIlSha256 = invalid }));
+            Provider.IsRunningModded = modded;
+            Compatibility.CheckSelectorBehavior(methods);
+            if (Provider.IsRunningModded != modded) throw new Exception("Global mod state changed");
         }
+        Provider.ModdedDirectory = "renamed";
+        try { Throws<InvalidOperationException>(() => Compatibility.CheckSelectorBehavior(methods)); }
+        finally { Provider.ModdedDirectory = "modded"; }
     }),
-    ("path-config preserves old config, flags and backup paths while recording exact selector hashes", () => WithTree((source, _) =>
+    ("setup rejects a factory that bypasses the selectors, even when the selectors still exist", () => WithTree((source, backup) =>
     {
-        var game = typeof(MegaCrit.Sts2.Core.Saves.UserDataPathProvider).Assembly.Location;
-        var config = new AuditConfig(Compatibility.HashFile(game), "legacy", source, "preserved-backup", "fixture", false);
-        var path = Path.Combine(source, "audit-config");
-        var original = System.Text.Json.JsonSerializer.Serialize(config);
-        File.WriteAllText(path, original);
-        var backup = SaveAudit.PathMethodAudit.UpdateConfig(game, path);
-        Equal(original, File.ReadAllText(backup));
-        var updated = Compatibility.ReadConfig(path);
-        if (updated.CallersAndVanillaLayoutVerified || updated.PathMethodIlSha256?.Count != 2) throw new Exception("Config migration wrong");
-        Equal(config.BackupDirectory, updated.BackupDirectory);
-        Equal(config.UserDataRoot, updated.UserDataRoot);
-        File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(config with { GameAssemblySha256 = "different" }));
-        var before = File.ReadAllText(path);
-        Throws<InvalidOperationException>(() => SaveAudit.PathMethodAudit.UpdateConfig(game, path));
-        Equal(before, File.ReadAllText(path));
+        var changedDll = Path.Combine(Path.GetDirectoryName(source)!, "changed.dll");
+        File.WriteAllBytes(changedDll, WithoutProgressRoute(typeof(Provider).Assembly.Location));
+        var config = changedDll + ".json";
+        Throws<InvalidOperationException>(() => SaveAudit.SetupConfig.Run(changedDll, source, config, backup));
+        if (File.Exists(config) || Directory.Exists(backup)) throw new Exception("Incompatible build wrote setup files");
     })),
     ("path report resolves both overloads and their direct callers without loading game code", () =>
     {
@@ -104,69 +92,50 @@ var tests = new (string Name, Action Run)[]
     }),
     ("path report rejects an assembly without the provider", () =>
         Throws<MissingMemberException>(() => SaveAudit.PathReport.Write(typeof(Compatibility).Assembly.Location, TextWriter.Null))),
-    ("automatic setup recognizes the source-reviewed build without manual flags", () =>
+    ("setup accepts a changed DLL hash and preserves legacy settings and first backup", () => WithTree((source, backup) =>
     {
-        var config = SaveAudit.SetupConfig.Choose(null, SaveAudit.SetupConfig.ReviewedGameHash, "user-root", "backup-root");
-        if (!config.CallersAndVanillaLayoutVerified) throw new Exception("Reviewed build not recognized");
-        Equal("0.113.1", config.AuditedGameVersion);
-        Equal("backup-root", config.BackupDirectory);
-    }),
-    ("automatic setup rejects an unknown game without a matching approved audit", () =>
-    {
-        Throws<InvalidOperationException>(() => SaveAudit.SetupConfig.Choose(null, "unknown", "user", "backup"));
-        var previous = new AuditConfig("old", "", "user", "backup", "version", true);
-        Throws<InvalidOperationException>(() => SaveAudit.SetupConfig.Choose(previous, "new", "user", "backup"));
-        Throws<InvalidOperationException>(() => SaveAudit.SetupConfig.Choose(previous with { CallersAndVanillaLayoutVerified = false }, "old", "user", "backup"));
-    }),
-    ("automatic setup preserves existing backup settings and is repeatable without touching saves", () => WithTree((source, backup) =>
-    {
-        var assembly = typeof(MegaCrit.Sts2.Core.Saves.UserDataPathProvider).Assembly.Location;
-        var configPath = source + ".config";
-        var existing = new AuditConfig(Compatibility.HashFile(assembly), "legacy", source, backup, "fixture", true);
-        var original = System.Text.Json.JsonSerializer.Serialize(existing);
-        File.WriteAllText(configPath, original);
-        try
+        var assembly = typeof(Provider).Assembly.Location;
+        var config = Path.Combine(Path.GetDirectoryName(source)!, "config.json");
+        var original = System.Text.Json.JsonSerializer.Serialize(new
         {
-            SaveAudit.SetupConfig.Run(assembly, source, configPath, backup + "-unused");
-            var config = Compatibility.ReadConfig(configPath);
-            Equal(backup, config.BackupDirectory);
-            if (config.PathMethodIlSha256?.Count != 2) throw new Exception("Missing target hashes");
-            var current = File.ReadAllText(configPath);
-            SaveAudit.SetupConfig.Run(assembly, source, configPath, backup + "-unused");
-            Equal(current, File.ReadAllText(configPath));
-            Equal("vanilla", File.ReadAllText(Path.Combine(source, "profile1", "saves", "progress.save")));
-            Equal("modded", File.ReadAllText(Path.Combine(source, "modded", "profile1", "saves", "progress.save")));
-        }
-        finally { File.Delete(configPath); }
+            GameAssemblySha256 = "old-game",
+            UserDataRoot = source,
+            BackupDirectory = backup,
+            CallersAndVanillaLayoutVerified = false
+        });
+        File.WriteAllText(config, original);
+        SaveAudit.SetupConfig.Run(assembly, source, config, backup + "-unused");
+        Equal(original, File.ReadAllText(config));
+        Equal(backup, SaveSettings.Read(config).BackupDirectory);
+        var save = Path.Combine(source, "profile1", "saves", "progress.save");
+        File.WriteAllText(save, "new progress");
+        SaveAudit.SetupConfig.Run(assembly, source, config, backup + "-unused");
+        Equal("vanilla", File.ReadAllText(Path.Combine(backup, "files", "profile1", "saves", "progress.save")));
+        Equal("new progress", File.ReadAllText(save));
     })),
-    ("fresh Workshop config uses only a reviewed build and no machine paths from the author", () => WithTree((source, backup) =>
+    ("fresh setup and runtime create location-only config, and runtime preserves legacy JSON", () => WithTree((source, backup) =>
     {
-        var hashes = new Dictionary<string, string> { ["GetAccountDir"]="account", ["GetProfileDir"]="profile" };
-        var config = RuntimeBootstrap.NewReviewedConfig(ReviewedBuilds.V01131Hash, source, backup, hashes);
-        Equal(FirstBackup.Canonical(source), config.UserDataRoot);
-        Equal(FirstBackup.Canonical(backup), config.BackupDirectory);
-        if (!config.CallersAndVanillaLayoutVerified) throw new Exception("Reviewed config incomplete");
-        Throws<InvalidOperationException>(() => RuntimeBootstrap.NewReviewedConfig("unknown", source, backup, hashes));
-    })),
-    ("runtime keeps existing config and rejects unknown first-run assemblies without writes", () => WithTree((source, backup) =>
-    {
-        var path = source + ".runtime-config";
-        var existing = new AuditConfig("existing", "legacy", source, backup, "user-version", true);
-        var json = System.Text.Json.JsonSerializer.Serialize(existing);
-        File.WriteAllText(path, json);
-        try
+        var path = Path.Combine(Path.GetDirectoryName(source)!, "runtime.json");
+        var settings = RuntimeBootstrap.LoadOrCreate(source, path, backup);
+        Equal(source, settings.UserDataRoot);
+        Equal(backup, settings.BackupDirectory);
+        var json = File.ReadAllText(path);
+        if (json.Contains("GameAssemblySha256") || json.Contains("AuditedGameVersion")) throw new Exception("Build pin in settings");
+        var legacy = System.Text.Json.JsonSerializer.Serialize(new
         {
-            var loaded = RuntimeBootstrap.LoadOrCreate(typeof(Compatibility).Assembly, source, path, backup + "-unused");
-            Equal(backup, loaded.BackupDirectory);
-            Equal(json, File.ReadAllText(path));
-            Throws<InvalidOperationException>(() => RuntimeBootstrap.LoadOrCreate(typeof(Compatibility).Assembly, source, path + "-missing", backup));
-            if (File.Exists(path + "-missing")) throw new Exception("Unknown build created config");
-        }
-        finally { File.Delete(path); }
+            settings.UserDataRoot,
+            settings.BackupDirectory,
+            GameAssemblySha256 = "older-dll"
+        });
+        File.WriteAllText(path, legacy);
+        Equal(backup, RuntimeBootstrap.LoadOrCreate(source, path, backup + "-unused").BackupDirectory);
+        Equal(legacy, File.ReadAllText(path));
+        var setupPath = Path.Combine(Path.GetDirectoryName(source)!, "setup.json");
+        SaveAudit.SetupConfig.Run(typeof(Provider).Assembly.Location, source, setupPath, backup);
+        Equal(json, File.ReadAllText(setupPath));
     })),
-    ("assembly change rejected before binding a target", () =>
-        Throws<InvalidOperationException>(() => Compatibility.ResolvePaths(typeof(Compatibility).Assembly,
-            new AuditConfig(new string('0', 64), "", "", "", "test", true))))
+    ("an assembly without the save provider is rejected", () =>
+        Throws<TypeLoadException>(() => Compatibility.ResolvePaths(typeof(Compatibility).Assembly)))
 };
 var failed = 0;
 foreach (var (name, run) in tests)
@@ -187,6 +156,24 @@ static void Throws<T>(Action action) where T : Exception
     catch (T) { return; }
     throw new Exception("Expected " + typeof(T).Name);
 }
+static byte[] WithoutProgressRoute(string assembly)
+{
+    var bytes = File.ReadAllBytes(assembly);
+    using var pe = new PEReader(new MemoryStream(bytes));
+    var md = pe.GetMetadataReader();
+    var method = md.MethodDefinitions.Select(md.GetMethodDefinition)
+        .Single(m => md.StringComparer.Equals(m.Name, "GetProgressPathForProfile"));
+    var rva = method.RelativeVirtualAddress;
+    var body = pe.GetMethodBody(rva);
+    var call = IlReader.Read(body.GetILBytes()!).First(i => i.Code == OpCodes.Call);
+    var section = pe.PEHeaders.SectionHeaders[pe.PEHeaders.GetContainingSectionIndex(rva)];
+    var start = rva - section.VirtualAddress + section.PointerToRawData;
+    var headerSize = (bytes[start] & 3) == 2 ? 1 : (bytes[start + 1] >> 4) * 4;
+    // Preserve the operand width for metadata inspection. This fixture is never executed.
+    bytes[start + headerSize + call.Offset] = unchecked((byte)OpCodes.Ldc_I4.Value);
+    return bytes;
+}
+
 static void WithTree(Action<string, string> action)
 {
     var root = Path.Combine(Path.GetTempPath(), "uvs-tests-" + Guid.NewGuid().ToString("N"));

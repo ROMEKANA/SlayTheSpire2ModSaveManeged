@@ -36,7 +36,7 @@ A read-only postfix logs the first bounded set of default requests and their ret
 
 ## Validation and installation
 
-Resolve exact static/string/parameter contracts and both IL hashes before installing either patch. Old wrapper/absolute-helper-only hash maps cannot enable these targets. Existing one-command Setup regenerates the selector hashes automatically, retaining first backups, config backups, directories and explicit user settings. Unknown DLLs still require a matching prior audit or the fingerprint paired with the supplied source.
+Since 0.5.0, setup and runtime inspect the installed DLL for both selector signatures, calls from the five known save-key factories, and the account-root call from SaveManager. Runtime also probes the unpatched selectors for vanilla, modded, and default path components. Setup retains existing location settings and first backups. Previously recorded hashes and game versions are diagnostic history. This check can detect changes to the known route shape. It cannot establish that every save operation still uses those factories.
 
 The patch implementation is shared with a separate test executable using NuGet Lib.Harmony 2.4.2. The production project continues to reference game-owned 0Harmony.dll and stages no NuGet Harmony payload. The independent tests use small contract fixtures and a key-value store, not proprietary game code or a substitute production game assembly. They exercise warmed callers, profile selection, all manager path categories, explicit overrides, round trips, global state preservation, late conflicts and owner-scoped cleanup under default and optimized JIT.
 
@@ -48,7 +48,7 @@ Check other Harmony owners on GetAccountDir, both GetProfileDir overloads, both 
 
 ## Manifest and multiplayer
 
-Keep affects_gameplay=false because the MOD changes only local save-namespace selection, not rules/wire data. Persistence compatibility and the current loader/network interpretation still require real acceptance. min_game_version=0.113.1 describes the reviewed source, not a guarantee for future builds.
+Keep affects_gameplay=false because the MOD changes local save-namespace selection. Persistence compatibility and the current loader/network interpretation still require real acceptance. The 0.5.0 manifest leaves game-version compatibility to the runtime checks.
 
 Test neither/one/both peers with the utility and matching/mismatched gameplay mods. Swap host/client and exercise join/reconnect/suspend/reload. Do not bypass original gameplay-mod mismatch checks. The MOD invokes no extra Cloud synchronization or copy/migration process; existing game storage behavior continues with the selected relative keys.
 

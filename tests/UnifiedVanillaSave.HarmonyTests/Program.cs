@@ -9,14 +9,13 @@ const string other = "test.other";
 var harmony = new Harmony(owner);
 var foreign = new Harmony(other);
 var game = typeof(Provider).Assembly;
-var config = new AuditConfig(Compatibility.HashFile(game.Location), "", "", "", "fixture", true,
-    SaveAudit.PathMethodAudit.Read(game.Location));
-var methods = Compatibility.ResolvePaths(game, config);
+var methods = Compatibility.ResolvePaths(game);
 var count = 0;
 void Check(string name, Action action) { action(); count++; Console.WriteLine("PASS " + name); }
 try
 {
     Provider.IsRunningModded = true;
+    Compatibility.CheckSelectorBehavior(methods);
     Check("warm manager path factories initially use the separate modded keys", () =>
     {
         Equal("modded/profile.save", Factory.Profile());

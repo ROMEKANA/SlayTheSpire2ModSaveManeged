@@ -109,7 +109,7 @@ local/paths.txt has exactly three lines: game root, game user-data/save root, MO
 
 Existing user-selected backup destinations are retained. Keep the first snapshot immutable, validate it before reuse, and do not put it inside active saves. Preserve old config and write replacements atomically. Preserve the previous MOD outside the recursively scanned mods tree; on installation failure restore it and preserve partial output separately. Game/application must be closed for installation and backup preparation.
 
-An unknown game DLL stops setup unless a matching prior audit or source-reviewed fingerprint applies. Automatic generation is not permission to guess compatibility or ask the owner to set an audit flag manually. The three-line file is location input; generated JSON and hashes are implementation details.
+Since 0.5.0, a different DLL fingerprint is accepted when the current DLL passes the save-routing checks. A failed check stops setup before replacing the current install or settings. Existing first backups and both config locations remain valid across compatible builds.
 
 PowerShell execution policy, downloaded-file blocking, directory ACLs and files held open are different problems. The README documents scoped remedies. This was requested as a future support improvement; do not invent a history of observed policy/ACL failures. Avoid global security relaxations or forced application termination.
 
@@ -121,8 +121,8 @@ PowerShell execution policy, downloaded-file blocking, directory ACLs and files 
 | [SaveRoutingPatches.cs](src/UnifiedVanillaSave/SaveRoutingPatches.cs) | Two nullable-argument prefixes, observed routes, conflicts and owner-scoped cleanup |
 | [Compatibility.cs](src/UnifiedVanillaSave.Core/Compatibility.cs) | Exact installed signatures, DLL fingerprint and target IL checks |
 | [FirstBackup.cs](src/UnifiedVanillaSave.Core/FirstBackup.cs) | Disjoint snapshot, hashes/receipt, incomplete/changed/link rejection |
-| [PathMethodAudit.cs](tools/SaveAudit/PathMethodAudit.cs) | Metadata-only selector identification and hashing |
-| [SetupConfig.cs](tools/SaveAudit/SetupConfig.cs) | Reviewed-version policy and automatic config/backup preparation |
+| [SaveRouteAudit.cs](src/UnifiedVanillaSave.Core/SaveRouteAudit.cs) | Shared metadata-only selector and save-factory checks |
+| [SetupConfig.cs](tools/SaveAudit/SetupConfig.cs) | Save route validation and automatic config/backup preparation |
 | [PathReport.cs](tools/SaveAudit/PathReport.cs) | Provider IL and direct caller evidence; not exhaustive runtime tracing |
 | [Setup.ps1](scripts/Setup.ps1) | One-command update/install coordinator using the three-line file |
 | [Build.ps1](scripts/Build.ps1) / [Install.ps1](scripts/Install.ps1) | Real-reference build and declared-payload installation |
